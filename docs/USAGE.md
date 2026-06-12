@@ -110,6 +110,12 @@ them in a file (one per line; blank lines and `#` comments ignored) with
 Exit code is `0` for any completed Crawl (even with page errors), non-zero
 only when nothing could be crawled at all.
 
+In files mode, links between crawled pages are rewritten at the end of the
+Crawl into relative `.md` paths (fragments preserved), so the output tree is
+navigable locally; links to external sites or pages that weren't crawled stay
+absolute. JSONL records keep absolute URLs — stream consumers do their own
+path mapping.
+
 ## Markdown extraction
 
 The content container is found by trying, in order: your `--selector`, the

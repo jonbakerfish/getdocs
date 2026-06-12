@@ -24,7 +24,7 @@ from scrapy.spidermiddlewares.httperror import HttpError
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page, is_shell
 from getdocs.navharvest import harvest_nav, merge_harvests
-from getdocs.output import AssetStore, FileTreeWriter, JsonlWriter, PageRecord
+from getdocs.output import AssetStore, FileTreeWriter, JsonlWriter, PageRecord, relink_pages
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
 from getdocs.urlnorm import normalize
@@ -398,6 +398,8 @@ def run_crawl(config: CrawlConfig) -> int:
         render_enabled=render_enabled,
     )
     process.start()
+    if isinstance(writer, FileTreeWriter):
+        relink_pages(writer, outcome["crawl_sequence"])
     nav, reading_order = merge_harvests(outcome["harvests"], outcome["crawl_sequence"])
     writer.write_manifest(
         seeds=config.seeds,

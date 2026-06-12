@@ -1,11 +1,15 @@
 """Output: Page records to a .md tree with YAML frontmatter, plus the Manifest."""
 
 import json
+import posixpath
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 import yaml
+
+from getdocs.urlnorm import normalize
 
 
 @dataclass(frozen=True)
@@ -87,6 +91,39 @@ class FileTreeWriter:
             + "\n"
         )
         return target
+
+
+_MD_LINK_RE = re.compile(r"\((https?://[^)\s]+)\)")
+
+
+def relink_pages(writer: FileTreeWriter, written_urls: list[str]) -> None:
+    """Rewrite links between crawled Pages into relative .md paths.
+
+    Runs at Crawl end, when the full set of written Pages is known. Links
+    to anything else — external sites, un-crawled pages, hotlinked media —
+    keep their absolute URLs.
+    """
+    targets = {
+        normalize(url): writer.path_for(url).relative_to(writer.output_dir).as_posix()
+        for url in written_urls
+    }
+
+    for url in written_urls:
+        page_path = writer.path_for(url)
+        page_dir = page_path.relative_to(writer.output_dir).parent.as_posix()
+
+        def rewrite(match):
+            link, _, fragment = match.group(1).partition("#")
+            target = targets.get(normalize(link))
+            if target is None:
+                return match.group(0)
+            relative = posixpath.relpath(target, start=page_dir)
+            return f"({relative}{'#' + fragment if fragment else ''})"
+
+        text = page_path.read_text()
+        rewritten = _MD_LINK_RE.sub(rewrite, text)
+        if rewritten != text:
+            page_path.write_text(rewritten)
 
 
 class AssetStore:
