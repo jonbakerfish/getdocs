@@ -86,6 +86,36 @@ def test_svg_with_accessible_label_uses_it():
     assert "Status: supported" in page.markdown
 
 
+def test_links_and_media_urls_are_absolutized_against_the_page_url():
+    html = """<html><head><title>T</title></head><body><main>
+    <p><a href="../intro">relative</a>
+    <a href="/docs/other">root-relative</a>
+    <a href="https://other.com/x">absolute</a>
+    <a href="mailto:hi@example.com">mail</a></p>
+    <img src="../img/setup.png" alt="setup">
+    <img src="//cdn.example.net/logo.svg" alt="logo">
+    </main></body></html>"""
+
+    page = extract_page(html, url="https://example.com/docs/guide/install")
+
+    assert "(https://example.com/docs/intro)" in page.markdown
+    assert "(https://example.com/docs/other)" in page.markdown
+    assert "(https://other.com/x)" in page.markdown
+    assert "(mailto:hi@example.com)" in page.markdown
+    assert "(https://example.com/docs/img/setup.png)" in page.markdown
+    assert "(https://cdn.example.net/logo.svg)" in page.markdown
+
+
+def test_srcset_candidates_are_absolutized():
+    html = """<html><head><title>T</title></head><body><main>
+    <img src="a.png" srcset="a.png 1x, big/a2.png 2x" alt="pic">
+    </main></body></html>"""
+
+    page = extract_page(html, url="https://example.com/docs/page")
+
+    assert "https://example.com/docs/a.png" in page.markdown
+
+
 def test_no_container_falls_back_to_readability_not_empty():
     html = """<html><head><title>Plain page</title></head><body>
     <div><div><p>This paragraph is the real content of an unstructured page,

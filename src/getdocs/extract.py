@@ -9,6 +9,7 @@ that structure beats statistical extraction (and never eats code blocks).
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter, markdownify
@@ -74,6 +75,21 @@ def _svg_to_text(root) -> None:
             label = next((g for prefix, g in _SVG_GLYPHS.items() if d.startswith(prefix)), None)
         if label:
             svg.replace_with(label)
+
+
+def _absolutize_urls(root, page_url: str) -> None:
+    """Rewrite hrefs/srcs absolute against the page URL — relative values
+    would point at nothing in the output tree (hotlink default, ADR-0005)."""
+    for tag in root.find_all(href=True):
+        tag["href"] = urljoin(page_url, tag["href"])
+    for tag in root.find_all(src=True):
+        tag["src"] = urljoin(page_url, tag["src"])
+    for tag in root.find_all(srcset=True):
+        tag["srcset"] = ", ".join(
+            " ".join([urljoin(page_url, part.strip().split()[0]), *part.strip().split()[1:]])
+            for part in tag["srcset"].split(",")
+            if part.strip()
+        )
 
 
 def _strip_noise(root) -> None:
@@ -150,6 +166,7 @@ def extract_page(html: str, url: str, selector: str | None = None) -> ExtractedP
     if root is not None:
         _strip_noise(root)
         _svg_to_text(root)
+        _absolutize_urls(root, url)
         markdown = _converter.convert(str(root)).strip()
     else:
         markdown = (_readability_markdown(html) or markdownify(str(soup.body or soup))).strip()
