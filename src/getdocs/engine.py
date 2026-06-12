@@ -21,6 +21,7 @@ from scrapy.spidermiddlewares.httperror import HttpError
 
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page, is_shell
+from getdocs.navharvest import harvest_nav, merge_harvests
 from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
@@ -92,6 +93,7 @@ class _CrawlSpider(scrapy.Spider):
         self.enqueued: set[str] = set(resume_state["enqueued"]) if resume_state else set()
         self.written: set[str] = set(resume_state["written"]) if resume_state else set()
         self.sitemaps_fetched: set[str] = set()
+        self.crawl_sequence: list[str] = outcome["crawl_sequence"]
 
     # -- discovery ---------------------------------------------------------
 
@@ -165,6 +167,10 @@ class _CrawlSpider(scrapy.Spider):
             if shellish:
                 # Rendering is off or unavailable: written as-is, flagged.
                 self.outcome["shells"].append(response.url)
+            self.crawl_sequence.append(response.url)
+            self.outcome["harvests"].append(
+                {"page": response.url, **harvest_nav(response.text, response.url)}
+            )
             self._progress()
         self.pending.pop(response.request.url, None)
 
@@ -251,6 +257,8 @@ class _CrawlSpider(scrapy.Spider):
                     "errors": self.outcome["errors"],
                     "skipped": self.outcome["skipped"],
                     "shells": self.outcome["shells"],
+                    "crawl_sequence": self.crawl_sequence,
+                    "harvests": self.outcome["harvests"],
                 }
             )
         )
@@ -270,6 +278,9 @@ def run_crawl(config: CrawlConfig) -> int:
         "errors": list(resume_state["errors"]) if resume_state else [],
         "skipped": list(resume_state["skipped"]) if resume_state else [],
         "shells": list(resume_state.get("shells", [])) if resume_state else [],
+        "harvests": list(resume_state.get("harvests", [])) if resume_state else [],
+        # Shared with the spider, which appends as Pages are written.
+        "crawl_sequence": list(resume_state.get("crawl_sequence", [])) if resume_state else [],
         "truncated": False,  # recomputed by this run: a resumed Crawl may finish
     }
     render_enabled = config.render != "never" and playwright_available()
@@ -308,11 +319,14 @@ def run_crawl(config: CrawlConfig) -> int:
         render_enabled=render_enabled,
     )
     process.start()
+    nav, reading_order = merge_harvests(outcome["harvests"], outcome["crawl_sequence"])
     writer.write_manifest(
         seeds=config.seeds,
         errors=outcome["errors"],
         truncated=outcome["truncated"],
         skipped=outcome["skipped"],
         shells=outcome["shells"],
+        nav=nav,
+        reading_order=reading_order,
     )
     return writer.page_count
