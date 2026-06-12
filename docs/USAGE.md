@@ -158,6 +158,16 @@ and the final Manifest reflects the whole Crawl. Resume is always explicit:
 running *without* `--resume` against a directory holding old state announces
 it is starting over.
 
+### Fixing old crawls with percent-encoded names
+
+Crawls made before getdocs decoded URL escapes have literal `%20` in file
+names. No re-crawl is needed — only the names are wrong:
+
+```bash
+python scripts/fix_encoded_names.py ./out --dry-run   # preview
+python scripts/fix_encoded_names.py ./out             # rename in place
+```
+
 ## Browsing a crawl with MkDocs
 
 The output tree is MkDocs-ready (the YAML frontmatter is read as page meta,
