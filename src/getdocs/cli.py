@@ -19,7 +19,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         help="Seed URL(s) for the Crawl (omit with --resume to reuse saved seeds)",
     )
     crawl.add_argument(
-        "--seeds-file", type=Path, metavar="FILE",
+        "-f", "--seeds-file", type=Path, metavar="FILE",
         help="File of additional Seed URLs, one per line (# comments and blank lines ignored)",
     )
     crawl.add_argument(

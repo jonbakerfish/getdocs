@@ -66,7 +66,7 @@ but Scope gates fetching regardless of how a URL was found.
 
 Multiple seed URLs are allowed: `getdocs crawl URL1 URL2 -o ./out`, or keep
 them in a file (one per line; blank lines and `#` comments ignored) with
-`--seeds-file urls.txt` — positional URLs and file URLs combine.
+`-f`/`--seeds-file urls.txt` — positional URLs and file URLs combine.
 
 ## Output formats
 

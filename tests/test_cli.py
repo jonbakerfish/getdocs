@@ -100,6 +100,7 @@ def test_seeds_file_alone_satisfies_the_seed_requirement(tmp_path):
     config = parse_args(["crawl", "--seeds-file", str(seeds_file)])
 
     assert config.seeds == ["https://a.com/docs"]
+    assert parse_args(["crawl", "-f", str(seeds_file)]).seeds == ["https://a.com/docs"]
 
 
 def test_missing_seeds_file_is_a_usage_error(tmp_path):
