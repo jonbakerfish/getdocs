@@ -77,7 +77,7 @@ class _CrawlSpider(scrapy.Spider):
                 self.outcome["truncated"] = True
                 raise CloseSpider("page limit reached")
             self.written.add(norm)
-            extracted = extract_page(response.text, response.url)
+            extracted = extract_page(response.text, response.url, selector=self.config.selector)
             self.writer.write_page(
                 PageRecord(
                     url=response.url,

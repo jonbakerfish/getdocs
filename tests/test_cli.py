@@ -53,3 +53,9 @@ def test_format_and_keep_html_flags():
 
     assert config.format == "jsonl"
     assert config.keep_html is True
+
+
+def test_selector_flag():
+    config = parse_args(["crawl", "https://example.com/docs", "--selector", "#content"])
+
+    assert config.selector == "#content"

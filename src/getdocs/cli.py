@@ -57,6 +57,10 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         help="files: .md tree + crawl.json; jsonl: one record per Page on stdout",
     )
     crawl.add_argument(
+        "--selector", metavar="CSS",
+        help="CSS selector for the content container (overrides auto-detection)",
+    )
+    crawl.add_argument(
         "--keep-html", action="store_true",
         help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
     )
@@ -74,6 +78,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         format=args.format,
         keep_html=args.keep_html,
         sitemap=args.sitemap,
+        selector=args.selector,
     )
 
 

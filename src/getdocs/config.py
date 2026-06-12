@@ -17,3 +17,4 @@ class CrawlConfig:
     format: str = "files"  # "files" or "jsonl"
     keep_html: bool = False
     sitemap: str = "both"  # "both", "off" (--no-sitemap), or "only" (--sitemap-only)
+    selector: str | None = None  # CSS selector naming the content container

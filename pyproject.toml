@@ -12,6 +12,7 @@ dependencies = [
     "markdownify>=0.13",
     "beautifulsoup4>=4.12",
     "pyyaml>=6.0",
+    "trafilatura>=1.12",
 ]
 
 [project.optional-dependencies]
