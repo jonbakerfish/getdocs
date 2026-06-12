@@ -51,6 +51,31 @@ def _code_language(el) -> str:
 _converter = MarkdownConverter(heading_style="ATX", code_language_callback=_code_language)
 
 
+# Known icon shapes (Material Design icon path prefixes, as emitted by
+# mkdocs-material twemoji spans). Inline SVGs carry no text, so without
+# this, checkmark columns in comparison tables extract as empty cells.
+_SVG_GLYPHS = {
+    "M21 7 9 19l-5.5-5.5": "✓",  # mdi-check
+    "M9 20.42 2.79 14.21": "✓",  # mdi-check-bold
+    "M19 6.41 17.59 5 12 10.59": "✗",  # mdi-close
+    "M20 6.91 17.09 4 12 9.09": "✗",  # mdi-close-thick
+}
+
+
+def _svg_to_text(root) -> None:
+    for svg in root.find_all("svg"):
+        label = svg.get("aria-label")
+        if not label:
+            title = svg.find("title")
+            label = title.get_text(strip=True) if title else None
+        if not label:
+            path = svg.find("path")
+            d = (path.get("d") or "") if path else ""
+            label = next((g for prefix, g in _SVG_GLYPHS.items() if d.startswith(prefix)), None)
+        if label:
+            svg.replace_with(label)
+
+
 def _strip_noise(root) -> None:
     for tag in root.find_all(_NOISE_TAGS):
         tag.decompose()
@@ -124,6 +149,7 @@ def extract_page(html: str, url: str, selector: str | None = None) -> ExtractedP
     root = _find_content_root(soup, selector)
     if root is not None:
         _strip_noise(root)
+        _svg_to_text(root)
         markdown = _converter.convert(str(root)).strip()
     else:
         markdown = (_readability_markdown(html) or markdownify(str(soup.body or soup))).strip()

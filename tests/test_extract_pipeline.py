@@ -63,6 +63,29 @@ def test_generator_container_beats_semantic_main():
     assert "Semantic pick" not in page.markdown
 
 
+def test_icon_svgs_in_table_cells_become_text_glyphs():
+    check = '<span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span>'
+    cross = '<span class="twemoji"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg></span>'
+    html = f"""<html><head><title>Chains</title></head><body><main>
+    <table><thead><tr><th>Chain</th><th>Hands only</th><th>Sidedness</th></tr></thead>
+    <tbody><tr><td><code>Hand</code></td><td>{check}</td><td>{cross}</td></tr></tbody></table>
+    </main></body></html>"""
+
+    page = extract_page(html, url="https://example.com/docs/skeletons")
+
+    assert "| `Hand` | ✓ | ✗ |" in page.markdown
+
+
+def test_svg_with_accessible_label_uses_it():
+    html = """<html><head><title>T</title></head><body><main>
+    <p>Status: <svg aria-label="supported" viewBox="0 0 24 24"><path d="M1 1"/></svg></p>
+    </main></body></html>"""
+
+    page = extract_page(html, url="https://example.com/x")
+
+    assert "Status: supported" in page.markdown
+
+
 def test_no_container_falls_back_to_readability_not_empty():
     html = """<html><head><title>Plain page</title></head><body>
     <div><div><p>This paragraph is the real content of an unstructured page,
