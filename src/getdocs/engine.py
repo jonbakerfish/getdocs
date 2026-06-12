@@ -5,6 +5,7 @@ once and never restarts (ADR-0002), which is why the future API service
 spawns this as a subprocess per Crawl.
 """
 
+import sys
 from datetime import datetime, timezone
 
 import scrapy
@@ -13,7 +14,7 @@ from scrapy.http import TextResponse
 
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page
-from getdocs.output import FileTreeWriter, PageRecord
+from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.urlnorm import normalize
 
@@ -53,6 +54,7 @@ class _CrawlSpider(scrapy.Spider):
                     status=response.status,
                     crawled_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     canonical=extracted.canonical,
+                    html=response.text if self.config.keep_html else None,
                 )
             )
 
@@ -71,7 +73,10 @@ class _CrawlSpider(scrapy.Spider):
 
 def run_crawl(config: CrawlConfig) -> int:
     """Run a Crawl to completion; returns the number of Pages produced."""
-    writer = FileTreeWriter(config.output_dir)
+    if config.format == "jsonl":
+        writer = JsonlWriter(sys.stdout)
+    else:
+        writer = FileTreeWriter(config.output_dir)
     process = CrawlerProcess(
         settings={
             "LOG_LEVEL": "ERROR",

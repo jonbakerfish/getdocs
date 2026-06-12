@@ -16,6 +16,7 @@ class PageRecord:
     status: int
     crawled_at: str
     canonical: str | None = None
+    html: str | None = None
 
 
 class FileTreeWriter:
@@ -34,7 +35,9 @@ class FileTreeWriter:
         target.parent.mkdir(parents=True, exist_ok=True)
 
         frontmatter = {
-            k: v for k, v in asdict(record).items() if k != "markdown" and v is not None
+            k: v
+            for k, v in asdict(record).items()
+            if k not in ("markdown", "html") and v is not None
         }
         target.write_text(
             "---\n"
@@ -43,6 +46,8 @@ class FileTreeWriter:
             + record.markdown
             + "\n"
         )
+        if record.html is not None:
+            target.with_suffix(".html").write_text(record.html)
         self.page_count += 1
         return target
 
@@ -53,3 +58,27 @@ class FileTreeWriter:
             json.dumps({"seeds": seeds, "page_count": self.page_count}, indent=2) + "\n"
         )
         return target
+
+
+class JsonlWriter:
+    """One typed JSON record per line; the Manifest is the final record.
+
+    This stream is the process-boundary protocol the future API service
+    consumes (ADR-0002) — record shape changes are contract changes.
+    """
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.page_count = 0
+
+    def _emit(self, record: dict) -> None:
+        self.stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self.stream.flush()
+
+    def write_page(self, record: PageRecord) -> None:
+        fields = {k: v for k, v in asdict(record).items() if v is not None}
+        self._emit({"type": "page", **fields})
+        self.page_count += 1
+
+    def write_manifest(self, seeds: list[str]) -> None:
+        self._emit({"type": "manifest", "seeds": seeds, "page_count": self.page_count})

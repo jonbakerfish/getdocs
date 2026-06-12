@@ -13,3 +13,5 @@ class CrawlConfig:
     include_paths: list[str] = field(default_factory=list)
     exclude_paths: list[str] = field(default_factory=list)
     depth: int = 0  # link-hops from any seed; 0 = unlimited
+    format: str = "files"  # "files" or "jsonl"
+    keep_html: bool = False

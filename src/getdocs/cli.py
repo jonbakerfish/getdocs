@@ -39,6 +39,14 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         "--depth", type=int, default=0, metavar="N",
         help="Maximum link-hops from any seed (default: 0 = unlimited)",
     )
+    crawl.add_argument(
+        "--format", choices=["files", "jsonl"], default="files",
+        help="files: .md tree + crawl.json; jsonl: one record per Page on stdout",
+    )
+    crawl.add_argument(
+        "--keep-html", action="store_true",
+        help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
+    )
 
     args = parser.parse_args(argv)
     return CrawlConfig(
@@ -49,15 +57,20 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         include_paths=args.include_paths,
         exclude_paths=args.exclude_paths,
         depth=args.depth,
+        format=args.format,
+        keep_html=args.keep_html,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     from getdocs.engine import run_crawl
 
+    import sys
+
     config = parse_args(argv)
     page_count = run_crawl(config)
     if page_count == 0:
-        print("error: no Pages produced — seed(s) unreachable?", flush=True)
+        # stderr: stdout belongs to the jsonl stream (ADR-0002)
+        print("error: no Pages produced — seed(s) unreachable?", file=sys.stderr, flush=True)
         return 1
     return 0

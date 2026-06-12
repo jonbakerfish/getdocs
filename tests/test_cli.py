@@ -35,3 +35,14 @@ def test_scope_flags_default_to_strict():
     assert config.include_paths == []
     assert config.exclude_paths == []
     assert config.depth == 0  # 0 = unlimited
+    assert config.format == "files"
+    assert config.keep_html is False
+
+
+def test_format_and_keep_html_flags():
+    config = parse_args([
+        "crawl", "https://example.com/docs", "--format", "jsonl", "--keep-html",
+    ])
+
+    assert config.format == "jsonl"
+    assert config.keep_html is True

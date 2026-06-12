@@ -38,6 +38,17 @@ def test_page_is_written_as_markdown_file_mirroring_url_path(tmp_path):
     assert body == "# Authentication\n\nUse a bearer token."
 
 
+def test_kept_html_becomes_sidecar_file_not_frontmatter(tmp_path):
+    writer = FileTreeWriter(tmp_path)
+
+    writer.write_page(make_record(html="<html><body>raw</body></html>"))
+
+    sidecar = tmp_path / "docs" / "auth.html"
+    assert sidecar.read_text() == "<html><body>raw</body></html>"
+    frontmatter, _ = read_frontmatter_and_body(tmp_path / "docs" / "auth.md")
+    assert "html" not in frontmatter
+
+
 def test_manifest_records_seeds_and_page_count(tmp_path):
     writer = FileTreeWriter(tmp_path)
     writer.write_page(make_record())
