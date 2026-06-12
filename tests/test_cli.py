@@ -39,6 +39,12 @@ def test_scope_flags_default_to_strict():
     assert config.keep_html is False
 
 
+def test_sitemap_mode_flags():
+    assert parse_args(["crawl", "https://x.com/d"]).sitemap == "both"
+    assert parse_args(["crawl", "https://x.com/d", "--no-sitemap"]).sitemap == "off"
+    assert parse_args(["crawl", "https://x.com/d", "--sitemap-only"]).sitemap == "only"
+
+
 def test_format_and_keep_html_flags():
     config = parse_args([
         "crawl", "https://example.com/docs", "--format", "jsonl", "--keep-html",

@@ -15,3 +15,4 @@ class CrawlConfig:
     depth: int = 0  # link-hops from any seed; 0 = unlimited
     format: str = "files"  # "files" or "jsonl"
     keep_html: bool = False
+    sitemap: str = "both"  # "both", "off" (--no-sitemap), or "only" (--sitemap-only)

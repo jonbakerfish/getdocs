@@ -7,6 +7,7 @@ spawns this as a subprocess per Crawl.
 
 import sys
 from datetime import datetime, timezone
+from urllib.parse import urljoin, urlsplit
 
 import scrapy
 from scrapy.crawler import CrawlerProcess
@@ -16,13 +17,14 @@ from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page
 from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
+from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
 from getdocs.urlnorm import normalize
 
 
 class _CrawlSpider(scrapy.Spider):
     name = "getdocs"
 
-    def __init__(self, config: CrawlConfig, writer: FileTreeWriter, **kwargs):
+    def __init__(self, config: CrawlConfig, writer, **kwargs):
         super().__init__(**kwargs)
         self.config = config
         self.writer = writer
@@ -33,15 +35,39 @@ class _CrawlSpider(scrapy.Spider):
             include_paths=config.include_paths,
             exclude_paths=config.exclude_paths,
         )
-        self.enqueued = {normalize(seed) for seed in config.seeds}
+        self.follow_links = config.sitemap != "only"
+        self.enqueued: set[str] = set()
         self.written: set[str] = set()
+        self.sitemaps_fetched: set[str] = set()
+
+    # -- discovery ---------------------------------------------------------
 
     async def start(self):
-        for seed in self.config.seeds:
-            yield scrapy.Request(seed, callback=self.parse_page)
+        if self.config.sitemap != "off":
+            roots = {f"{urlsplit(s).scheme}://{urlsplit(s).netloc}" for s in self.config.seeds}
+            for root in sorted(roots):
+                yield scrapy.Request(urljoin(root, "/robots.txt"), callback=self.parse_robots)
+                for request in self._sitemap_requests([urljoin(root, "/sitemap.xml")]):
+                    yield request
+        if self.config.sitemap != "only":
+            for seed in self.config.seeds:
+                self.enqueued.add(normalize(seed))
+                yield self._page_request(seed, hops=0)
+
+    def parse_robots(self, response):
+        yield from self._sitemap_requests(parse_robots_sitemaps(response.text))
+
+    def parse_sitemap(self, response):
+        page_urls, nested = parse_sitemap_xml(response.text)
+        yield from self._sitemap_requests(nested)
+        for url in page_urls:
+            # Sitemap-discovered Pages are depth-0 seeds: Scope still gates
+            # them, but --depth never excludes them.
+            yield from self._enqueue_page(url, hops=0)
+
+    # -- fetching ----------------------------------------------------------
 
     def parse_page(self, response):
-        # Redirects land on their final URL, which may already be written.
         norm = normalize(response.url)
         if norm not in self.written:
             self.written.add(norm)
@@ -58,17 +84,33 @@ class _CrawlSpider(scrapy.Spider):
                 )
             )
 
-        if not isinstance(response, TextResponse):
+        if not self.follow_links or not isinstance(response, TextResponse):
+            return
+        hops = response.meta["hops"]
+        if self.config.depth and hops + 1 > self.config.depth:
             return
         for href in response.css("a::attr(href)").getall():
-            url = response.urljoin(href.strip())
-            if not self.scope.allows(url):
-                continue
-            norm = normalize(url)
-            if norm in self.enqueued:
-                continue
-            self.enqueued.add(norm)
-            yield scrapy.Request(url, callback=self.parse_page)
+            yield from self._enqueue_page(response.urljoin(href.strip()), hops=hops + 1)
+
+    # -- helpers -----------------------------------------------------------
+
+    def _page_request(self, url: str, hops: int) -> scrapy.Request:
+        return scrapy.Request(url, callback=self.parse_page, meta={"hops": hops})
+
+    def _enqueue_page(self, url: str, hops: int):
+        if not self.scope.allows(url):
+            return
+        norm = normalize(url)
+        if norm in self.enqueued:
+            return
+        self.enqueued.add(norm)
+        yield self._page_request(url, hops=hops)
+
+    def _sitemap_requests(self, urls: list[str]):
+        for url in urls:
+            if url not in self.sitemaps_fetched:
+                self.sitemaps_fetched.add(url)
+                yield scrapy.Request(url, callback=self.parse_sitemap)
 
 
 def run_crawl(config: CrawlConfig) -> int:
@@ -81,7 +123,6 @@ def run_crawl(config: CrawlConfig) -> int:
         settings={
             "LOG_LEVEL": "ERROR",
             "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
-            "DEPTH_LIMIT": config.depth,
         },
         install_root_handler=False,
     )

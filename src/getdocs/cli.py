@@ -39,6 +39,15 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         "--depth", type=int, default=0, metavar="N",
         help="Maximum link-hops from any seed (default: 0 = unlimited)",
     )
+    sitemap_group = crawl.add_mutually_exclusive_group()
+    sitemap_group.add_argument(
+        "--no-sitemap", dest="sitemap", action="store_const", const="off", default="both",
+        help="Discover pages by link traversal only",
+    )
+    sitemap_group.add_argument(
+        "--sitemap-only", dest="sitemap", action="store_const", const="only",
+        help="Crawl exactly the in-Scope sitemap URLs; follow no links",
+    )
     crawl.add_argument(
         "--format", choices=["files", "jsonl"], default="files",
         help="files: .md tree + crawl.json; jsonl: one record per Page on stdout",
@@ -59,6 +68,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         depth=args.depth,
         format=args.format,
         keep_html=args.keep_html,
+        sitemap=args.sitemap,
     )
 
 
