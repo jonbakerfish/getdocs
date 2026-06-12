@@ -35,6 +35,7 @@ def test_scope_flags_default_to_strict():
     assert config.include_paths == []
     assert config.exclude_paths == []
     assert config.depth == 0  # 0 = unlimited
+    assert config.limit == 1000
     assert config.format == "files"
     assert config.keep_html is False
 

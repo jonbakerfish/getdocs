@@ -11,7 +11,9 @@ from urllib.parse import urljoin, urlsplit
 
 import scrapy
 from scrapy.crawler import CrawlerProcess
+from scrapy.exceptions import CloseSpider
 from scrapy.http import TextResponse
+from scrapy.spidermiddlewares.httperror import HttpError
 
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page
@@ -24,10 +26,11 @@ from getdocs.urlnorm import normalize
 class _CrawlSpider(scrapy.Spider):
     name = "getdocs"
 
-    def __init__(self, config: CrawlConfig, writer, **kwargs):
+    def __init__(self, config: CrawlConfig, writer, outcome: dict, **kwargs):
         super().__init__(**kwargs)
         self.config = config
         self.writer = writer
+        self.outcome = outcome
         self.scope = Scope.from_seeds(
             config.seeds,
             allow_backward=config.allow_backward,
@@ -70,6 +73,9 @@ class _CrawlSpider(scrapy.Spider):
     def parse_page(self, response):
         norm = normalize(response.url)
         if norm not in self.written:
+            if self.config.limit and self.writer.page_count >= self.config.limit:
+                self.outcome["truncated"] = True
+                raise CloseSpider("page limit reached")
             self.written.add(norm)
             extracted = extract_page(response.text, response.url)
             self.writer.write_page(
@@ -83,6 +89,7 @@ class _CrawlSpider(scrapy.Spider):
                     html=response.text if self.config.keep_html else None,
                 )
             )
+            self._progress()
 
         if not self.follow_links or not isinstance(response, TextResponse):
             return
@@ -92,10 +99,31 @@ class _CrawlSpider(scrapy.Spider):
         for href in response.css("a::attr(href)").getall():
             yield from self._enqueue_page(response.urljoin(href.strip()), hops=hops + 1)
 
+    def on_page_error(self, failure):
+        if failure.check(HttpError):
+            response = failure.value.response
+            error = {"url": response.url, "status": response.status, "reason": f"HTTP {response.status}"}
+        else:
+            error = {"url": failure.request.url, "status": None, "reason": failure.type.__name__}
+        self.outcome["errors"].append(error)
+        self._progress()
+
     # -- helpers -----------------------------------------------------------
 
+    def _progress(self):
+        done = len(self.written) + len(self.outcome["errors"])
+        print(
+            f"[getdocs] pages={len(self.written)} "
+            f"pending={max(len(self.enqueued) - done, 0)} "
+            f"errors={len(self.outcome['errors'])}",
+            file=sys.stderr,
+            flush=True,
+        )
+
     def _page_request(self, url: str, hops: int) -> scrapy.Request:
-        return scrapy.Request(url, callback=self.parse_page, meta={"hops": hops})
+        return scrapy.Request(
+            url, callback=self.parse_page, errback=self.on_page_error, meta={"hops": hops}
+        )
 
     def _enqueue_page(self, url: str, hops: int):
         if not self.scope.allows(url):
@@ -119,14 +147,18 @@ def run_crawl(config: CrawlConfig) -> int:
         writer = JsonlWriter(sys.stdout)
     else:
         writer = FileTreeWriter(config.output_dir)
+    outcome = {"errors": [], "truncated": False}
     process = CrawlerProcess(
         settings={
             "LOG_LEVEL": "ERROR",
             "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
+            "RETRY_TIMES": 2,
         },
         install_root_handler=False,
     )
-    process.crawl(_CrawlSpider, config=config, writer=writer)
+    process.crawl(_CrawlSpider, config=config, writer=writer, outcome=outcome)
     process.start()
-    writer.write_manifest(seeds=config.seeds)
+    writer.write_manifest(
+        seeds=config.seeds, errors=outcome["errors"], truncated=outcome["truncated"]
+    )
     return writer.page_count

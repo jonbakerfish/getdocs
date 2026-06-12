@@ -39,6 +39,10 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         "--depth", type=int, default=0, metavar="N",
         help="Maximum link-hops from any seed (default: 0 = unlimited)",
     )
+    crawl.add_argument(
+        "--limit", type=int, default=1000, metavar="N",
+        help="Maximum Pages per Crawl (default: 1000; 0 = unlimited)",
+    )
     sitemap_group = crawl.add_mutually_exclusive_group()
     sitemap_group.add_argument(
         "--no-sitemap", dest="sitemap", action="store_const", const="off", default="both",
@@ -66,6 +70,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         include_paths=args.include_paths,
         exclude_paths=args.exclude_paths,
         depth=args.depth,
+        limit=args.limit,
         format=args.format,
         keep_html=args.keep_html,
         sitemap=args.sitemap,

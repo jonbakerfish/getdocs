@@ -58,3 +58,16 @@ def test_manifest_records_seeds_and_page_count(tmp_path):
     manifest = json.loads((tmp_path / "crawl.json").read_text())
     assert manifest["seeds"] == ["https://example.com/docs/auth"]
     assert manifest["page_count"] == 1
+    assert manifest["errors"] == []
+    assert manifest["truncated"] is False
+
+
+def test_manifest_carries_errors_and_truncation(tmp_path):
+    writer = FileTreeWriter(tmp_path)
+    errors = [{"url": "https://example.com/docs/gone", "status": 404, "reason": "HTTP 404"}]
+
+    writer.write_manifest(seeds=["https://example.com/docs"], errors=errors, truncated=True)
+
+    manifest = json.loads((tmp_path / "crawl.json").read_text())
+    assert manifest["errors"] == errors
+    assert manifest["truncated"] is True
