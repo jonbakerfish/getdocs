@@ -19,6 +19,10 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         help="Seed URL(s) for the Crawl (omit with --resume to reuse saved seeds)",
     )
     crawl.add_argument(
+        "--seeds-file", type=Path, metavar="FILE",
+        help="File of additional Seed URLs, one per line (# comments and blank lines ignored)",
+    )
+    crawl.add_argument(
         "--resume", action="store_true",
         help="Continue the interrupted Crawl whose state lives in the output directory",
     )
@@ -96,10 +100,19 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
     args = parser.parse_args(argv)
     if args.command == "serve":
         return ServeConfig(host=args.host, port=args.port)
-    if not args.seeds and not args.resume:
-        crawl.error("at least one seed URL is required (or --resume)")
+    seeds = list(args.seeds)
+    if args.seeds_file is not None:
+        if not args.seeds_file.exists():
+            crawl.error(f"seeds file not found: {args.seeds_file}")
+        seeds += [
+            line.strip()
+            for line in args.seeds_file.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    if not seeds and not args.resume:
+        crawl.error("at least one seed URL is required (or --seeds-file / --resume)")
     return CrawlConfig(
-        seeds=args.seeds,
+        seeds=seeds,
         resume=args.resume,
         output_dir=args.output_dir,
         allow_backward=args.allow_backward,

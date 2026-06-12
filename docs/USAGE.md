@@ -64,7 +64,9 @@ but Scope gates fetching regardless of how a URL was found.
 | `--limit N` | Max pages per Crawl (default 1000, `0` = unlimited) |
 | `--no-sitemap` / `--sitemap-only` | Force link-only or sitemap-only discovery |
 
-Multiple seed URLs are allowed: `getdocs crawl URL1 URL2 -o ./out`.
+Multiple seed URLs are allowed: `getdocs crawl URL1 URL2 -o ./out`, or keep
+them in a file (one per line; blank lines and `#` comments ignored) with
+`--seeds-file urls.txt` — positional URLs and file URLs combine.
 
 ## Output formats
 

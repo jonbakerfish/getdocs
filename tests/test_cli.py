@@ -77,6 +77,38 @@ def test_render_mode_flag():
     assert parse_args(["crawl", "https://x.com/d", "--render", "never"]).render == "never"
 
 
+def test_seeds_file_urls_are_added_to_positional_seeds(tmp_path):
+    seeds_file = tmp_path / "urls.txt"
+    seeds_file.write_text(
+        "https://a.com/docs\n"
+        "\n"
+        "# a comment\n"
+        "https://b.com/docs\n"
+    )
+
+    config = parse_args([
+        "crawl", "https://c.com/docs", "--seeds-file", str(seeds_file),
+    ])
+
+    assert config.seeds == ["https://c.com/docs", "https://a.com/docs", "https://b.com/docs"]
+
+
+def test_seeds_file_alone_satisfies_the_seed_requirement(tmp_path):
+    seeds_file = tmp_path / "urls.txt"
+    seeds_file.write_text("https://a.com/docs\n")
+
+    config = parse_args(["crawl", "--seeds-file", str(seeds_file)])
+
+    assert config.seeds == ["https://a.com/docs"]
+
+
+def test_missing_seeds_file_is_a_usage_error(tmp_path):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        parse_args(["crawl", "--seeds-file", str(tmp_path / "nope.txt")])
+
+
 def test_serve_subcommand_parses_host_and_port():
     config = parse_args(["serve", "--host", "0.0.0.0", "--port", "9000"])
 
