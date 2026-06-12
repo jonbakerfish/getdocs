@@ -15,6 +15,7 @@ from markdownify import markdownify
 class ExtractedPage:
     title: str
     markdown: str
+    canonical: str | None = None
 
 
 _CONTENT_SELECTORS = ["main", "article", "[role=main]"]
@@ -25,6 +26,9 @@ def extract_page(html: str, url: str) -> ExtractedPage:
 
     title = soup.title.get_text(strip=True) if soup.title else url
 
+    canonical_link = soup.find("link", rel="canonical")
+    canonical = canonical_link.get("href") if canonical_link else None
+
     root = None
     for selector in _CONTENT_SELECTORS:
         root = soup.select_one(selector)
@@ -34,4 +38,4 @@ def extract_page(html: str, url: str) -> ExtractedPage:
         root = soup.body or soup
 
     markdown = markdownify(str(root), heading_style="ATX").strip()
-    return ExtractedPage(title=title, markdown=markdown)
+    return ExtractedPage(title=title, markdown=markdown, canonical=canonical)

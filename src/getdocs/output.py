@@ -15,6 +15,7 @@ class PageRecord:
     markdown: str
     status: int
     crawled_at: str
+    canonical: str | None = None
 
 
 class FileTreeWriter:
@@ -32,7 +33,9 @@ class FileTreeWriter:
         target = self.path_for(record.url)
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        frontmatter = {k: v for k, v in asdict(record).items() if k != "markdown"}
+        frontmatter = {
+            k: v for k, v in asdict(record).items() if k != "markdown" and v is not None
+        }
         target.write_text(
             "---\n"
             + yaml.safe_dump(frontmatter, sort_keys=False)

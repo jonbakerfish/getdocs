@@ -1,36 +1,9 @@
 import json
 import subprocess
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-import pytest
-
-FIXTURE_HTML = (Path(__file__).parent / "fixtures" / "basic_docs_page.html").read_bytes()
-
-
-class _FixtureHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/docs/auth":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.end_headers()
-            self.wfile.write(FIXTURE_HTML)
-        else:
-            self.send_error(404)
-
-    def log_message(self, *args):
-        pass
-
-
-@pytest.fixture
-def fixture_site():
-    server = HTTPServer(("127.0.0.1", 0), _FixtureHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_port}"
-    server.shutdown()
+FIXTURE_HTML = (Path(__file__).parent / "fixtures" / "basic_docs_page.html").read_text()
 
 
 def run_getdocs(*args):
@@ -40,8 +13,9 @@ def run_getdocs(*args):
     )
 
 
-def test_single_page_crawl_writes_page_and_manifest(fixture_site, tmp_path):
-    seed = f"{fixture_site}/docs/auth"
+def test_single_page_crawl_writes_page_and_manifest(site, tmp_path):
+    site.add("/docs/auth", FIXTURE_HTML)
+    seed = f"{site.url}/docs/auth"
 
     result = run_getdocs("crawl", seed, "-o", str(tmp_path))
 

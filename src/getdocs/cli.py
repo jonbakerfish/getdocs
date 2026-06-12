@@ -19,9 +19,37 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         "-o", "--output-dir", type=Path, default=Path("./out"),
         help="Directory the Pages and Manifest are written to (default: ./out)",
     )
+    crawl.add_argument(
+        "--allow-backward", action="store_true",
+        help="Widen Scope from the seed's path prefix to its whole host",
+    )
+    crawl.add_argument(
+        "--allow-subdomains", action="store_true",
+        help="Widen Scope to subdomains of the seed host",
+    )
+    crawl.add_argument(
+        "--include-paths", action="append", default=[], metavar="GLOB",
+        help="Only crawl paths matching at least one glob (repeatable)",
+    )
+    crawl.add_argument(
+        "--exclude-paths", action="append", default=[], metavar="GLOB",
+        help="Never crawl paths matching a glob (repeatable)",
+    )
+    crawl.add_argument(
+        "--depth", type=int, default=0, metavar="N",
+        help="Maximum link-hops from any seed (default: 0 = unlimited)",
+    )
 
     args = parser.parse_args(argv)
-    return CrawlConfig(seeds=args.seeds, output_dir=args.output_dir)
+    return CrawlConfig(
+        seeds=args.seeds,
+        output_dir=args.output_dir,
+        allow_backward=args.allow_backward,
+        allow_subdomains=args.allow_subdomains,
+        include_paths=args.include_paths,
+        exclude_paths=args.exclude_paths,
+        depth=args.depth,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
