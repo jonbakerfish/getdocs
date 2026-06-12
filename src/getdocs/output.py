@@ -1,0 +1,52 @@
+"""Output: Page records to a .md tree with YAML frontmatter, plus the Manifest."""
+
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from urllib.parse import urlsplit
+
+import yaml
+
+
+@dataclass(frozen=True)
+class PageRecord:
+    url: str
+    title: str
+    markdown: str
+    status: int
+    crawled_at: str
+
+
+class FileTreeWriter:
+    def __init__(self, output_dir: Path):
+        self.output_dir = Path(output_dir)
+        self.page_count = 0
+
+    def path_for(self, url: str) -> Path:
+        path = urlsplit(url).path.strip("/")
+        if not path:
+            path = "index"
+        return self.output_dir / f"{path}.md"
+
+    def write_page(self, record: PageRecord) -> Path:
+        target = self.path_for(record.url)
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        frontmatter = {k: v for k, v in asdict(record).items() if k != "markdown"}
+        target.write_text(
+            "---\n"
+            + yaml.safe_dump(frontmatter, sort_keys=False)
+            + "---\n\n"
+            + record.markdown
+            + "\n"
+        )
+        self.page_count += 1
+        return target
+
+    def write_manifest(self, seeds: list[str]) -> Path:
+        target = self.output_dir / "crawl.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps({"seeds": seeds, "page_count": self.page_count}, indent=2) + "\n"
+        )
+        return target

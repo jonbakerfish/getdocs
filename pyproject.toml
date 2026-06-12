@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "getdocs"
+version = "0.1.0"
+description = "Documentation crawler: recursively crawl a docs site and emit clean markdown"
+requires-python = ">=3.12"
+dependencies = [
+    "scrapy>=2.11",
+    "markdownify>=0.13",
+    "beautifulsoup4>=4.12",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+getdocs = "getdocs.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
