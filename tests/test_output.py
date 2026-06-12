@@ -38,6 +38,22 @@ def test_page_is_written_as_markdown_file_mirroring_url_path(tmp_path):
     assert body == "# Authentication\n\nUse a bearer token."
 
 
+def test_percent_encoded_url_paths_become_decoded_file_names(tmp_path):
+    writer = FileTreeWriter(tmp_path)
+
+    writer.write_page(make_record(url="https://example.com/docs/Metagloves%20Pro%20Haptic/"))
+
+    assert (tmp_path / "docs" / "Metagloves Pro Haptic.md").exists()
+
+
+def test_encoded_slash_in_a_segment_does_not_create_extra_directories(tmp_path):
+    writer = FileTreeWriter(tmp_path)
+
+    writer.write_page(make_record(url="https://example.com/docs/a%2Fb"))
+
+    assert (tmp_path / "docs" / "a_b.md").exists()
+
+
 def test_kept_html_becomes_sidecar_file_not_frontmatter(tmp_path):
     writer = FileTreeWriter(tmp_path)
 

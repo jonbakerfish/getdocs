@@ -3,7 +3,7 @@
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import yaml
 
@@ -25,9 +25,14 @@ class FileTreeWriter:
         self.page_count = 0
 
     def path_for(self, url: str) -> Path:
-        path = urlsplit(url).path.strip("/")
-        if not path:
-            path = "index"
+        # Decode percent-escapes per segment so %20 doesn't end up in file
+        # names (and %2F can't smuggle in extra directory levels).
+        segments = [
+            unquote(segment).replace("/", "_")
+            for segment in urlsplit(url).path.split("/")
+            if segment
+        ]
+        path = "/".join(segments) or "index"
         return self.output_dir / f"{path}.md"
 
     def write_page(self, record: PageRecord) -> Path:

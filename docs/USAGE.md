@@ -170,10 +170,18 @@ getdocs crawl https://example.com/docs -o ./out
 python scripts/serve_mkdocs.py ./out     # http://127.0.0.1:8001
 ```
 
-It adds an `index.md` homepage listing every page if the crawl didn't produce
-one, names the site after the first seed's host (override with `--site-name`),
-and supports `--theme readthedocs`/`material` (install `mkdocs-material` for
-the latter), `--port`, and `--build DIR` for a static site instead of serving.
+The generated nav mirrors the original site's hierarchy: sections come from
+URL path segments, labels from each page's crawled title, and ordering from
+crawl order (links are discovered in the order they appear on each page). A
+page like `Products.md` that has a matching `Products/` directory becomes its
+section's first entry.
+
+The script also adds an `index.md` homepage listing every page if the crawl
+didn't produce one, and names the site after the first seed's host (override
+with `--site-name`). The theme defaults to **mkdocs-material** when installed
+(`pip install mkdocs-material`), falling back to the plain mkdocs theme;
+choose explicitly with `--theme`. `--port` changes the address and
+`--build DIR` produces a static site instead of serving.
 
 ## API service
 
