@@ -52,7 +52,11 @@ class FileTreeWriter:
         return target
 
     def write_manifest(
-        self, seeds: list[str], errors: list[dict] | None = None, truncated: bool = False
+        self,
+        seeds: list[str],
+        errors: list[dict] | None = None,
+        truncated: bool = False,
+        skipped: list[dict] | None = None,
     ) -> Path:
         target = self.output_dir / "crawl.json"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +66,7 @@ class FileTreeWriter:
                     "seeds": seeds,
                     "page_count": self.page_count,
                     "errors": errors or [],
+                    "skipped": skipped or [],
                     "truncated": truncated,
                 },
                 indent=2,
@@ -92,7 +97,11 @@ class JsonlWriter:
         self.page_count += 1
 
     def write_manifest(
-        self, seeds: list[str], errors: list[dict] | None = None, truncated: bool = False
+        self,
+        seeds: list[str],
+        errors: list[dict] | None = None,
+        truncated: bool = False,
+        skipped: list[dict] | None = None,
     ) -> None:
         self._emit(
             {
@@ -100,6 +109,7 @@ class JsonlWriter:
                 "seeds": seeds,
                 "page_count": self.page_count,
                 "errors": errors or [],
+                "skipped": skipped or [],
                 "truncated": truncated,
             }
         )

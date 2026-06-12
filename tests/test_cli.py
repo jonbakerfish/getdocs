@@ -55,6 +55,21 @@ def test_format_and_keep_html_flags():
     assert config.keep_html is True
 
 
+def test_politeness_flags_and_defaults():
+    config = parse_args(["crawl", "https://example.com/docs"])
+    assert config.ignore_robots is False
+    assert config.delay == 1.0
+    assert config.concurrency == 4
+
+    config = parse_args([
+        "crawl", "https://example.com/docs",
+        "--ignore-robots", "--delay", "0.5", "--concurrency", "8",
+    ])
+    assert config.ignore_robots is True
+    assert config.delay == 0.5
+    assert config.concurrency == 8
+
+
 def test_selector_flag():
     config = parse_args(["crawl", "https://example.com/docs", "--selector", "#content"])
 

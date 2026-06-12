@@ -5,13 +5,15 @@ once and never restarts (ADR-0002), which is why the future API service
 spawns this as a subprocess per Crawl.
 """
 
+import asyncio
 import sys
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlsplit
 
 import scrapy
 from scrapy.crawler import CrawlerProcess
-from scrapy.exceptions import CloseSpider
+from scrapy.downloadermiddlewares.retry import get_retry_request
+from scrapy.exceptions import CloseSpider, IgnoreRequest
 from scrapy.http import TextResponse
 from scrapy.spidermiddlewares.httperror import HttpError
 
@@ -21,6 +23,28 @@ from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
 from getdocs.urlnorm import normalize
+
+
+class RetryAfterMiddleware:
+    """Retry 429 responses no sooner than the server's Retry-After asks.
+
+    Scrapy's stock RetryMiddleware retries 429 immediately, which is exactly
+    what a rate-limiting server is telling us not to do — so 429 is removed
+    from its codes and handled here with an async sleep (asyncio reactor).
+    """
+
+    async def process_response(self, request, response, spider):
+        if response.status != 429:
+            return response
+        retry = get_retry_request(request, spider=spider, reason="429 Too Many Requests")
+        if retry is None:
+            return response  # retries exhausted; falls through to the errback
+        try:
+            delay = float(response.headers.get("Retry-After", b"1"))
+        except ValueError:
+            delay = 1.0
+        await asyncio.sleep(delay)
+        return retry
 
 
 class _CrawlSpider(scrapy.Spider):
@@ -103,6 +127,14 @@ class _CrawlSpider(scrapy.Spider):
         if failure.check(HttpError):
             response = failure.value.response
             error = {"url": response.url, "status": response.status, "reason": f"HTTP {response.status}"}
+        elif failure.check(IgnoreRequest):
+            # HttpError subclasses IgnoreRequest, so this arm only sees true
+            # filtering — robots.txt telling us not to fetch.
+            self.outcome["skipped"].append(
+                {"url": failure.request.url, "reason": "robots.txt"}
+            )
+            self._progress()
+            return
         else:
             error = {"url": failure.request.url, "status": None, "reason": failure.type.__name__}
         self.outcome["errors"].append(error)
@@ -147,18 +179,29 @@ def run_crawl(config: CrawlConfig) -> int:
         writer = JsonlWriter(sys.stdout)
     else:
         writer = FileTreeWriter(config.output_dir)
-    outcome = {"errors": [], "truncated": False}
+    outcome = {"errors": [], "skipped": [], "truncated": False}
     process = CrawlerProcess(
         settings={
             "LOG_LEVEL": "ERROR",
             "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
             "RETRY_TIMES": 2,
+            # 429 is handled by RetryAfterMiddleware, which honors Retry-After.
+            "RETRY_HTTP_CODES": [500, 502, 503, 504, 522, 524, 408],
+            "DOWNLOADER_MIDDLEWARES": {RetryAfterMiddleware: 560},
+            "ROBOTSTXT_OBEY": not config.ignore_robots,
+            "DOWNLOAD_DELAY": config.delay,
+            "AUTOTHROTTLE_ENABLED": config.delay > 0,
+            "AUTOTHROTTLE_START_DELAY": config.delay or 1.0,
+            "CONCURRENT_REQUESTS_PER_DOMAIN": config.concurrency,
         },
         install_root_handler=False,
     )
     process.crawl(_CrawlSpider, config=config, writer=writer, outcome=outcome)
     process.start()
     writer.write_manifest(
-        seeds=config.seeds, errors=outcome["errors"], truncated=outcome["truncated"]
+        seeds=config.seeds,
+        errors=outcome["errors"],
+        truncated=outcome["truncated"],
+        skipped=outcome["skipped"],
     )
     return writer.page_count

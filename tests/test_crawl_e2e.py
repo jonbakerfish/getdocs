@@ -8,7 +8,7 @@ FIXTURE_HTML = (Path(__file__).parent / "fixtures" / "basic_docs_page.html").rea
 
 def run_getdocs(*args):
     return subprocess.run(
-        [sys.executable, "-m", "getdocs", *args],
+        [sys.executable, "-m", "getdocs", *args, "--delay", "0"],
         capture_output=True, text=True, timeout=120,
     )
 

@@ -18,3 +18,6 @@ class CrawlConfig:
     keep_html: bool = False
     sitemap: str = "both"  # "both", "off" (--no-sitemap), or "only" (--sitemap-only)
     selector: str | None = None  # CSS selector naming the content container
+    ignore_robots: bool = False
+    delay: float = 1.0  # throttle start delay in seconds; 0 disables throttling
+    concurrency: int = 4  # concurrent requests per domain

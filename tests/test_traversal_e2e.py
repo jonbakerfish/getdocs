@@ -29,7 +29,7 @@ def build_docs_site(site):
 
 def run_getdocs(*args):
     return subprocess.run(
-        [sys.executable, "-m", "getdocs", *args],
+        [sys.executable, "-m", "getdocs", *args, "--delay", "0"],
         capture_output=True, text=True, timeout=120,
     )
 

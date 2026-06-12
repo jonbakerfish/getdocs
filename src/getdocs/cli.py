@@ -61,6 +61,18 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         help="CSS selector for the content container (overrides auto-detection)",
     )
     crawl.add_argument(
+        "--ignore-robots", action="store_true",
+        help="Consciously override robots.txt rules",
+    )
+    crawl.add_argument(
+        "--delay", type=float, default=1.0, metavar="SECONDS",
+        help="Adaptive-throttle start delay between requests (default: 1.0; 0 = no throttle)",
+    )
+    crawl.add_argument(
+        "--concurrency", type=int, default=4, metavar="N",
+        help="Concurrent requests per domain (default: 4)",
+    )
+    crawl.add_argument(
         "--keep-html", action="store_true",
         help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
     )
@@ -79,6 +91,9 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         keep_html=args.keep_html,
         sitemap=args.sitemap,
         selector=args.selector,
+        ignore_robots=args.ignore_robots,
+        delay=args.delay,
+        concurrency=args.concurrency,
     )
 
 

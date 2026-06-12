@@ -71,3 +71,17 @@ def test_manifest_carries_errors_and_truncation(tmp_path):
     manifest = json.loads((tmp_path / "crawl.json").read_text())
     assert manifest["errors"] == errors
     assert manifest["truncated"] is True
+
+
+def test_manifest_records_robots_skipped_urls(tmp_path):
+    writer = FileTreeWriter(tmp_path)
+
+    writer.write_manifest(
+        seeds=["https://example.com/docs"],
+        skipped=[{"url": "https://example.com/docs/private", "reason": "robots.txt"}],
+    )
+
+    manifest = json.loads((tmp_path / "crawl.json").read_text())
+    assert manifest["skipped"] == [
+        {"url": "https://example.com/docs/private", "reason": "robots.txt"}
+    ]

@@ -6,6 +6,7 @@ this site with a sitemap, error endpoints, an SPA shell, and robots.txt.
 """
 
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
@@ -14,26 +15,33 @@ import pytest
 class _Flaky:
     """Returns an error status for the first fail_times requests, then HTML."""
 
-    def __init__(self, html: str, fail_times: int, status: int):
+    def __init__(self, html: str, fail_times: int, status: int, headers: dict | None = None):
         self.html = html
         self.remaining_failures = fail_times
         self.status = status
+        self.headers = headers or {}
 
 
 class FixtureSite:
     def __init__(self):
         self.routes: dict[str, object] = {}
         self.hits: dict[str, int] = {}
+        self.hit_times: dict[str, list[float]] = {}
         site = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 site.hits[self.path] = site.hits.get(self.path, 0) + 1
+                site.hit_times.setdefault(self.path, []).append(time.monotonic())
                 route = site.routes.get(self.path)
                 if isinstance(route, _Flaky):
                     if route.remaining_failures > 0:
                         route.remaining_failures -= 1
-                        self.send_error(route.status)
+                        self.send_response(route.status)
+                        for name, value in route.headers.items():
+                            self.send_header(name, value)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
                         return
                     route = route.html
                 if route is None:
@@ -66,8 +74,11 @@ class FixtureSite:
     def add_redirect(self, path: str, location: str, status: int = 302):
         self.routes[path] = (status, {"Location": location})
 
-    def add_flaky(self, path: str, html: str, fail_times: int = 1, status: int = 500):
-        self.routes[path] = _Flaky(html, fail_times, status)
+    def add_flaky(
+        self, path: str, html: str, fail_times: int = 1, status: int = 500,
+        headers: dict | None = None,
+    ):
+        self.routes[path] = _Flaky(html, fail_times, status, headers)
 
     def stop(self):
         self._server.shutdown()

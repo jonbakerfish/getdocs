@@ -27,7 +27,8 @@ def build_site_with_sitemap(site):
 
 def run_crawl(site, tmp_path, *extra):
     result = subprocess.run(
-        [sys.executable, "-m", "getdocs", "crawl", f"{site.url}/docs/", "-o", str(tmp_path), *extra],
+        [sys.executable, "-m", "getdocs", "crawl", f"{site.url}/docs/", "-o", str(tmp_path),
+         "--delay", "0", *extra],
         capture_output=True, text=True, timeout=120,
     )
     assert result.returncode == 0, result.stderr
