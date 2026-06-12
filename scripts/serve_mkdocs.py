@@ -26,18 +26,73 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import yaml
 
 
-def site_name_for(crawl_dir: Path) -> str:
+def load_manifest(crawl_dir: Path) -> dict:
     manifest = crawl_dir / "crawl.json"
-    if manifest.exists():
-        seeds = json.loads(manifest.read_text()).get("seeds") or []
-        if seeds:
-            return urlsplit(seeds[0]).netloc or "getdocs crawl"
+    return json.loads(manifest.read_text()) if manifest.exists() else {}
+
+
+def site_name_for(manifest: dict) -> str:
+    seeds = manifest.get("seeds") or []
+    if seeds:
+        return urlsplit(seeds[0]).netloc or "getdocs crawl"
     return "getdocs crawl"
+
+
+def url_to_relpath(url: str) -> str:
+    """Mirror FileTreeWriter.path_for: decoded URL path → relative .md path."""
+    segments = [
+        unquote(s).replace("/", "_") for s in urlsplit(url).path.split("/") if s
+    ]
+    return ("/".join(segments) or "index") + ".md"
+
+
+def nav_from_manifest(manifest: dict, crawl_dir: Path, pages: list[dict]) -> list | None:
+    """Build the MkDocs nav from the Manifest's harvested Nav Order and
+    Reading Order (ADR-0004); None when the Manifest predates them."""
+    tree = manifest.get("nav") or []
+    if not tree:
+        return None
+
+    referenced: set[str] = set()
+
+    def render(nodes: list[dict]) -> list:
+        entries = []
+        for node in nodes:
+            children = render(node.get("children") or [])
+            path = url_to_relpath(node["url"]) if node.get("url") else None
+            if path is not None and not (crawl_dir / path).exists():
+                path = None
+            title = node.get("title") or (path or "Section")
+            if path:
+                referenced.add(path)
+            if path and children:
+                entries.append({title: [{title: path}, *children]})
+            elif path:
+                entries.append({title: path})
+            elif children:
+                entries.append({title: children})
+        return entries
+
+    nav = render(tree)
+
+    # Crawled pages the site's nav never mentioned: append in Reading Order.
+    position = {
+        url_to_relpath(url): i for i, url in enumerate(manifest.get("reading_order") or [])
+    }
+    leftovers = [
+        p for p in pages if p["path"] not in referenced and p["path"] != "index.md"
+    ]
+    leftovers.sort(key=lambda p: position.get(p["path"], len(position)))
+    nav += [{p["title"]: p["path"]} for p in leftovers]
+
+    if (crawl_dir / "index.md").exists():
+        nav.insert(0, {"Home": "index.md"})
+    return nav
 
 
 def read_frontmatter(md_file: Path) -> dict:
@@ -176,10 +231,11 @@ def main() -> int:
         print(f"error: no crawled .md files found in {args.crawl_dir}", file=sys.stderr)
         return 2
 
+    manifest = load_manifest(args.crawl_dir)
     pages = crawled_pages(args.crawl_dir)
     has_homepage = ensure_homepage(args.crawl_dir, pages)
-    nav = build_nav(pages, has_homepage)
-    site_name = args.site_name or site_name_for(args.crawl_dir)
+    nav = nav_from_manifest(manifest, args.crawl_dir, pages) or build_nav(pages, has_homepage)
+    site_name = args.site_name or site_name_for(manifest)
     theme = args.theme or default_theme()
 
     with tempfile.TemporaryDirectory(prefix="getdocs-mkdocs-") as tmp:
