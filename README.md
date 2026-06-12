@@ -11,6 +11,9 @@ Each crawled Page is written as a `.md` file mirroring the URL path
 (`url`, `title`, `crawled_at`, `status`), plus a `crawl.json` Manifest
 summarizing the Crawl.
 
+Sitemap discovery, JavaScript rendering, polite throttling, JSONL output,
+and resumable crawls are built in — see [docs/USAGE.md](docs/USAGE.md).
+
 ## Development
 
 ```bash
