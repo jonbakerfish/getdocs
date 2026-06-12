@@ -28,11 +28,25 @@ _Avoid_: index, report
 A fetched response that is an unhydrated client-side app frame rather than real content; triggers render escalation.
 _Avoid_: empty page, SPA page
 
+**Asset**:
+A file a Page references rather than links to as documentation — an image, document download, or video; fetched (optionally) by media download, never converted to markdown.
+_Avoid_: attachment, resource, media file (use Asset in code; "media" only in flag names)
+
+**Nav Order**:
+The tree of in-Scope Page links — labels, grouping, nesting — as presented by the original site's header and sidebar navigation, recorded in the Manifest.
+_Avoid_: sidebar structure, nav map
+
+**Reading Order**:
+The linear sequence of Pages matching how a reader would traverse the original site; prev/next link chains are authoritative, falling back to Nav Order traversal, then crawl order.
+_Avoid_: page order (ambiguous with crawl order), webpage order
+
 ## Relationships
 
 - A **Crawl** has one or more **Seed URLs** and exactly one **Scope**
 - A **Crawl** produces zero or more **Pages** and exactly one **Manifest**
 - A **Scope** is derived from the **Seed URLs** plus user overrides (backward, subdomains, path globs)
+- A **Manifest** carries the Crawl's **Nav Order** and **Reading Order**; Pages absent from every signal follow in crawl order
+- A **Page** references zero or more **Assets**; **Scope** gates Pages, never Assets (Assets may live off-host)
 
 ## Example dialogue
 
