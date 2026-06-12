@@ -59,3 +59,45 @@ def test_failed_crawl_reports_failed_status(site):
 def test_crawl_requires_a_url(site):
     with TestClient(create_app()) as client:
         assert client.post("/v1/crawl", json={"limit": 5}).status_code == 422
+
+
+def test_delete_cancels_a_running_job_and_is_idempotent(site):
+    site.add("/docs/", page("Home", '<h1>Home</h1><a href="/docs/a">A</a>'))
+    site.add("/docs/a", page("A", "<h1>A</h1>"))
+
+    with TestClient(create_app()) as client:
+        job_id = client.post(
+            "/v1/crawl", json={"url": f"{site.url}/docs/", "delay": 0.5}
+        ).json()["id"]
+
+        response = client.delete(f"/v1/crawl/{job_id}")
+        assert response.status_code == 200
+        assert response.json()["status"] == "cancelled"
+
+        body = poll_until_done(client, job_id)
+        assert body["status"] == "cancelled"
+
+        # idempotent: a second delete leaves it cancelled
+        assert client.delete(f"/v1/crawl/{job_id}").json()["status"] == "cancelled"
+        assert client.delete("/v1/crawl/nope").status_code == 404
+
+
+def test_listing_jobs(site):
+    site.add("/docs/", page("Home", "<h1>Home</h1>"))
+
+    with TestClient(create_app()) as client:
+        assert client.get("/v1/crawl").json() == {"jobs": []}
+
+        job_id = client.post(
+            "/v1/crawl", json={"url": f"{site.url}/docs/", "delay": 0}
+        ).json()["id"]
+        poll_until_done(client, job_id)
+
+        jobs = client.get("/v1/crawl").json()["jobs"]
+
+    assert len(jobs) == 1
+    assert jobs[0]["id"] == job_id
+    assert jobs[0]["status"] == "completed"
+    assert jobs[0]["page_count"] == 1
+    assert jobs[0]["seeds"] == [f"{site.url}/docs/"]
+    assert "pages" not in jobs[0]  # summaries, not full payloads

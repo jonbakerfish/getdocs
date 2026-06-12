@@ -1,6 +1,6 @@
 """API service: Firecrawl-style async Crawl jobs over the engine (ADR-0002)."""
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket
 from pydantic import BaseModel, model_validator
 
 from getdocs.jobs import CrawlJob, JobManager
@@ -22,6 +22,7 @@ class CrawlRequest(BaseModel):
     keep_html: bool = False
     delay: float | None = None
     concurrency: int | None = None
+    webhook: str | None = None  # URL POSTed started/page/completed events
 
     @model_validator(mode="after")
     def _require_some_url(self):
@@ -39,6 +40,7 @@ def _serialize(job: CrawlJob) -> dict:
         "pages": job.pages,
         "manifest": job.manifest,
         "error": job.error,
+        "webhook_failures": job.webhook_failures,
     }
 
 
@@ -52,11 +54,42 @@ def create_app(manager: JobManager | None = None) -> FastAPI:
         job = manager.start(request.model_dump(exclude_none=True))
         return {"id": job.id, "status": job.status}
 
+    @app.get("/v1/crawl")
+    async def list_crawls():
+        return {
+            "jobs": [
+                {
+                    "id": job.id,
+                    "status": job.status,
+                    "seeds": job.seeds,
+                    "page_count": len(job.pages),
+                }
+                for job in manager.jobs.values()
+            ]
+        }
+
     @app.get("/v1/crawl/{job_id}")
     async def get_crawl(job_id: str):
         job = manager.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="no such Crawl job")
         return _serialize(job)
+
+    @app.websocket("/v1/crawl/{job_id}/ws")
+    async def stream_crawl(websocket: WebSocket, job_id: str):
+        await websocket.accept()
+        if manager.get(job_id) is None:
+            await websocket.close(code=4404, reason="no such Crawl job")
+            return
+        async for event in manager.stream(job_id):
+            await websocket.send_json(event)
+        await websocket.close()
+
+    @app.delete("/v1/crawl/{job_id}")
+    async def cancel_crawl(job_id: str):
+        job = manager.cancel(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="no such Crawl job")
+        return {"id": job.id, "status": job.status}
 
     return app

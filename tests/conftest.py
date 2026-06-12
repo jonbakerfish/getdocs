@@ -5,6 +5,7 @@ or a (status, headers) tuple for redirects and errors. Later slices extend
 this site with a sitemap, error endpoints, an SPA shell, and robots.txt.
 """
 
+import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -27,6 +28,8 @@ class FixtureSite:
         self.routes: dict[str, object] = {}
         self.hits: dict[str, int] = {}
         self.hit_times: dict[str, list[float]] = {}
+        self.posts: list[tuple[str, dict | None]] = []
+        self.post_status: dict[str, int] = {}
         site = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -59,6 +62,14 @@ class FixtureSite:
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+                site.posts.append((self.path, json.loads(body) if body else None))
+                self.send_response(site.post_status.get(self.path, 200))
+                self.send_header("Content-Length", "0")
+                self.end_headers()
 
             def log_message(self, *args):
                 pass

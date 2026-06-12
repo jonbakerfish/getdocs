@@ -42,6 +42,46 @@ def test_job_with_unreachable_seed_fails(tmp_path):
     assert job.error
 
 
+def build_slow_site(site, n=8):
+    site.add("/docs/", page("Home", '<h1>Home</h1><a href="/docs/p0">go</a>'))
+    for i in range(n):
+        link = f'<a href="/docs/p{i + 1}">next</a>' if i + 1 < n else ""
+        site.add(f"/docs/p{i}", page(f"P{i}", f"<h1>P{i}</h1>{link}"))
+
+
+def test_cancel_terminates_a_running_job_and_keeps_partial_pages(site):
+    build_slow_site(site)
+
+    async def scenario():
+        manager = JobManager()
+        job = manager.start({"url": f"{site.url}/docs/", "delay": 0.3})
+        await asyncio.sleep(1.0)  # let a couple of pages land
+        manager.cancel(job.id)
+        await manager.wait(job.id)
+        return job
+
+    job = asyncio.run(scenario())
+
+    assert job.status == "cancelled"
+    assert 0 < len(job.pages) < 9  # partial results survive
+
+
+def test_cancel_finished_job_is_a_noop_and_unknown_is_none(site):
+    build_docs_site(site)
+
+    async def scenario():
+        manager = JobManager()
+        job = manager.start({"url": f"{site.url}/docs/", "delay": 0})
+        await manager.wait(job.id)
+        manager.cancel(job.id)
+        return job, manager.cancel("nope")
+
+    job, unknown = asyncio.run(scenario())
+
+    assert job.status == "completed"
+    assert unknown is None
+
+
 def test_build_args_maps_options_to_cli_flags():
     args = build_args({
         "urls": ["https://a.com/d", "https://b.com/d"],

@@ -156,6 +156,32 @@ and the final Manifest reflects the whole Crawl. Resume is always explicit:
 running *without* `--resume` against a directory holding old state announces
 it is starting over.
 
+## API service
+
+For programmatic use, getdocs ships a Firecrawl-style async API:
+
+```bash
+pip install "getdocs[server]"
+getdocs serve --host 127.0.0.1 --port 8000
+```
+
+- `POST /v1/crawl` — body `{"url": "...", ...}` (or `"urls": [...]`) accepting
+  the same options as the CLI flags (`limit`, `depth`, `allow_backward`,
+  `include_paths`, `render`, `selector`, `delay`, …) plus an optional
+  `"webhook"` URL. Returns `{"id": ..., "status": "running"}` immediately.
+  Each job runs the CLI as a subprocess and consumes its JSONL stream.
+- `GET /v1/crawl/{id}` — poll a job: status (`running` / `completed` /
+  `failed` / `cancelled`), pages so far, and the Manifest once done.
+- `GET /v1/crawl` — list all jobs (summaries).
+- `DELETE /v1/crawl/{id}` — cancel a running job; partial results are kept.
+- `WS /v1/crawl/{id}/ws` — stream events live: pages already produced are
+  replayed first, then live page events, ending with the Manifest.
+- **Webhooks** — when a `webhook` URL is given, the service POSTs
+  `{"event": "started"}`, one `{"event": "page", "page": {...}}` per page,
+  and `{"event": "completed", "manifest": {...}}`. Delivery failures are
+  retried a few times and reported as `webhook_failures` on the job — they
+  never affect the Crawl itself.
+
 ## All options
 
 Run `getdocs crawl --help` for the authoritative list.
