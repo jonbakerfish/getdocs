@@ -158,6 +158,23 @@ and the final Manifest reflects the whole Crawl. Resume is always explicit:
 running *without* `--resume` against a directory holding old state announces
 it is starting over.
 
+## Browsing a crawl with MkDocs
+
+The output tree is MkDocs-ready (the YAML frontmatter is read as page meta,
+so titles carry over). `scripts/serve_mkdocs.py` generates the config and
+serves it:
+
+```bash
+pip install mkdocs                       # once
+getdocs crawl https://example.com/docs -o ./out
+python scripts/serve_mkdocs.py ./out     # http://127.0.0.1:8001
+```
+
+It adds an `index.md` homepage listing every page if the crawl didn't produce
+one, names the site after the first seed's host (override with `--site-name`),
+and supports `--theme readthedocs`/`material` (install `mkdocs-material` for
+the latter), `--port`, and `--build DIR` for a static site instead of serving.
+
 ## API service
 
 For programmatic use, getdocs ships a Firecrawl-style async API:
