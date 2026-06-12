@@ -13,6 +13,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 
+class _Binary:
+    def __init__(self, data: bytes, content_type: str):
+        self.data = data
+        self.content_type = content_type
+
+
 class _Flaky:
     """Returns an error status for the first fail_times requests, then HTML."""
 
@@ -47,7 +53,13 @@ class FixtureSite:
                         self.end_headers()
                         return
                     route = route.html
-                if route is None:
+                if isinstance(route, _Binary):
+                    self.send_response(200)
+                    self.send_header("Content-Type", route.content_type)
+                    self.send_header("Content-Length", str(len(route.data)))
+                    self.end_headers()
+                    self.wfile.write(route.data)
+                elif route is None:
                     self.send_error(404)
                 elif isinstance(route, tuple):
                     status, headers = route
@@ -84,6 +96,9 @@ class FixtureSite:
 
     def add_redirect(self, path: str, location: str, status: int = 302):
         self.routes[path] = (status, {"Location": location})
+
+    def add_bytes(self, path: str, data: bytes, content_type: str = "application/octet-stream"):
+        self.routes[path] = _Binary(data, content_type)
 
     def add_flaky(
         self, path: str, html: str, fail_times: int = 1, status: int = 500,

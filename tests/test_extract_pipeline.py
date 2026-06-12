@@ -116,6 +116,25 @@ def test_srcset_candidates_are_absolutized():
     assert "https://example.com/docs/a.png" in page.markdown
 
 
+def test_images_and_document_links_are_reported_as_assets():
+    html = """<html><head><title>T</title></head><body><main>
+    <img src="../img/setup.png" alt="setup">
+    <img src="https://cdn.example.net/logo.svg" alt="logo">
+    <a href="/files/datasheet.pdf">Datasheet</a>
+    <a href="/files/firmware.zip">Firmware</a>
+    <a href="/docs/other">A normal page link</a>
+    </main></body></html>"""
+
+    page = extract_page(html, url="https://example.com/docs/guide/install")
+
+    assert page.assets == (
+        "https://example.com/docs/img/setup.png",
+        "https://cdn.example.net/logo.svg",
+        "https://example.com/files/datasheet.pdf",
+        "https://example.com/files/firmware.zip",
+    )
+
+
 def test_no_container_falls_back_to_readability_not_empty():
     html = """<html><head><title>Plain page</title></head><body>
     <div><div><p>This paragraph is the real content of an unstructured page,

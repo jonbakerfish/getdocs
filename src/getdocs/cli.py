@@ -89,6 +89,15 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         help="Concurrent requests per domain (default: 4)",
     )
     crawl.add_argument(
+        "--download-media", action="store_true",
+        help="Download referenced images/documents (Assets) into _media/ and "
+             "rewrite links to the local copies",
+    )
+    crawl.add_argument(
+        "--media-max-size", type=float, default=50.0, metavar="MB",
+        help="Per-Asset size cap for --download-media (default: 50); larger files stay linked",
+    )
+    crawl.add_argument(
         "--keep-html", action="store_true",
         help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
     )
@@ -129,6 +138,8 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         ignore_robots=args.ignore_robots,
         delay=args.delay,
         concurrency=args.concurrency,
+        download_media=args.download_media,
+        media_max_size=args.media_max_size,
     )
 
 

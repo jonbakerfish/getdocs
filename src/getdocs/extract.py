@@ -9,7 +9,7 @@ that structure beats statistical extraction (and never eats code blocks).
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter, markdownify
@@ -20,6 +20,12 @@ class ExtractedPage:
     title: str
     markdown: str
     canonical: str | None = None
+    assets: tuple[str, ...] = ()  # absolute URLs of referenced images/documents
+
+
+_DOC_EXTENSIONS = (
+    ".pdf", ".zip", ".tar.gz", ".tgz", ".7z", ".dmg", ".pkg", ".msi", ".exe", ".whl",
+)
 
 
 _GENERATOR_SELECTORS = [
@@ -77,19 +83,26 @@ def _svg_to_text(root) -> None:
             svg.replace_with(label)
 
 
-def _absolutize_urls(root, page_url: str) -> None:
+def _absolutize_urls(root, page_url: str) -> list[str]:
     """Rewrite hrefs/srcs absolute against the page URL — relative values
-    would point at nothing in the output tree (hotlink default, ADR-0005)."""
+    would point at nothing in the output tree (hotlink default, ADR-0005).
+    Returns the Asset URLs found: images, then document downloads."""
+    images, documents = [], []
     for tag in root.find_all(href=True):
         tag["href"] = urljoin(page_url, tag["href"])
+        if tag.name == "a" and urlsplit(tag["href"]).path.lower().endswith(_DOC_EXTENSIONS):
+            documents.append(tag["href"])
     for tag in root.find_all(src=True):
         tag["src"] = urljoin(page_url, tag["src"])
+        if tag.name == "img":
+            images.append(tag["src"])
     for tag in root.find_all(srcset=True):
         tag["srcset"] = ", ".join(
             " ".join([urljoin(page_url, part.strip().split()[0]), *part.strip().split()[1:]])
             for part in tag["srcset"].split(",")
             if part.strip()
         )
+    return images + documents
 
 
 def _strip_noise(root) -> None:
@@ -163,12 +176,15 @@ def extract_page(html: str, url: str, selector: str | None = None) -> ExtractedP
     canonical = canonical_link.get("href") if canonical_link else None
 
     root = _find_content_root(soup, selector)
+    assets: list[str] = []
     if root is not None:
         _strip_noise(root)
         _svg_to_text(root)
-        _absolutize_urls(root, url)
+        assets = _absolutize_urls(root, url)
         markdown = _converter.convert(str(root)).strip()
     else:
         markdown = (_readability_markdown(html) or markdownify(str(soup.body or soup))).strip()
 
-    return ExtractedPage(title=title, markdown=markdown, canonical=canonical)
+    return ExtractedPage(
+        title=title, markdown=markdown, canonical=canonical, assets=tuple(assets)
+    )

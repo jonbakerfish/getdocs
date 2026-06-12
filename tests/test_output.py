@@ -54,6 +54,17 @@ def test_encoded_slash_in_a_segment_does_not_create_extra_directories(tmp_path):
     assert (tmp_path / "docs" / "a_b.md").exists()
 
 
+def test_asset_store_saves_under_media_by_host_with_decoded_names(tmp_path):
+    from getdocs.output import AssetStore
+
+    store = AssetStore(tmp_path)
+
+    relpath = store.save("https://cdn.example.net/img/Pro%20Glove.png", b"\x89PNG")
+
+    assert relpath == "_media/cdn.example.net/img/Pro Glove.png"
+    assert (tmp_path / relpath).read_bytes() == b"\x89PNG"
+
+
 def test_kept_html_becomes_sidecar_file_not_frontmatter(tmp_path):
     writer = FileTreeWriter(tmp_path)
 

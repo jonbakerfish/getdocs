@@ -65,6 +65,7 @@ class FileTreeWriter:
         shells: list[str] | None = None,
         nav: list[dict] | None = None,
         reading_order: list[str] | None = None,
+        media_skipped: list[dict] | None = None,
     ) -> Path:
         target = self.output_dir / "crawl.json"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -79,12 +80,31 @@ class FileTreeWriter:
                     "truncated": truncated,
                     "nav": nav or [],
                     "reading_order": reading_order or [],
+                    "media_skipped": media_skipped or [],
                 },
                 indent=2,
             )
             + "\n"
         )
         return target
+
+
+class AssetStore:
+    """Downloaded Assets land under _media/<host>/<decoded path>."""
+
+    def __init__(self, output_dir: Path):
+        self.output_dir = Path(output_dir)
+
+    def save(self, url: str, body: bytes) -> str:
+        parts = urlsplit(url)
+        segments = [
+            unquote(s).replace("/", "_") for s in parts.path.split("/") if s
+        ] or ["asset"]
+        relpath = "/".join(["_media", parts.netloc, *segments])
+        target = self.output_dir / relpath
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(body)
+        return relpath
 
 
 class JsonlWriter:
@@ -116,6 +136,7 @@ class JsonlWriter:
         shells: list[str] | None = None,
         nav: list[dict] | None = None,
         reading_order: list[str] | None = None,
+        media_skipped: list[dict] | None = None,
     ) -> None:
         self._emit(
             {
@@ -128,5 +149,6 @@ class JsonlWriter:
                 "truncated": truncated,
                 "nav": nav or [],
                 "reading_order": reading_order or [],
+                "media_skipped": media_skipped or [],
             }
         )

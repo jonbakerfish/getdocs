@@ -23,6 +23,8 @@ class CrawlConfig:
     resume: bool = False  # continue an interrupted Crawl from saved state
     delay: float = 1.0  # throttle start delay in seconds; 0 disables throttling
     concurrency: int = 4  # concurrent requests per domain
+    download_media: bool = False  # fetch referenced Assets into _media/
+    media_max_size: float = 50.0  # per-Asset cap in MB; larger files stay hotlinked
 
 
 @dataclass(frozen=True)

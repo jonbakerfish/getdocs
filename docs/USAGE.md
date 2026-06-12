@@ -80,6 +80,13 @@ them in a file (one per line; blank lines and `#` comments ignored) with
 
 - **`--keep-html`** — also keep each page's raw HTML (a `.html` sidecar in
   files mode, an `html` field in jsonl mode).
+- **`--download-media`** — download referenced images and document files
+  (PDF/zip/…) into `_media/<host>/…` and rewrite links to the local copies,
+  for offline/archival use. Media may live off-host (CDNs) — that's allowed.
+  Files over `--media-max-size` MB (default 50) stay linked to the original
+  site and are listed under `media_skipped` in the Manifest. Videos and
+  iframes always remain links. By default (no flag) nothing is downloaded
+  and all media references are absolute URLs into the original site.
 
 ### The Manifest (`crawl.json` / final jsonl record)
 

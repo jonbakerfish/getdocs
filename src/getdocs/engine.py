@@ -7,7 +7,9 @@ spawns this as a subprocess per Crawl.
 
 import asyncio
 import json
+import posixpath
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -22,7 +24,7 @@ from scrapy.spidermiddlewares.httperror import HttpError
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page, is_shell
 from getdocs.navharvest import harvest_nav, merge_harvests
-from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
+from getdocs.output import AssetStore, FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
 from getdocs.urlnorm import normalize
@@ -77,6 +79,14 @@ class _CrawlSpider(scrapy.Spider):
         self.resume_state = resume_state
         self.render_enabled = render_enabled
         self.shell_hosts: dict[str, int] = {}
+        # Asset download bookkeeping (--download-media). A Page's write is
+        # deferred until its Assets resolve, so failed/oversized Assets can
+        # keep their absolute URLs in the written markdown.
+        self.asset_store = AssetStore(config.output_dir)
+        self.asset_results: dict[str, str | None] = {}
+        self.asset_inflight: set[str] = set()
+        self.pending_pages: list[dict] = []
+        self.media_cap_bytes = int(config.media_max_size * 1024 * 1024)
         # Frontier bookkeeping, persisted across runs (see closed()).
         # pending maps a yielded URL to its hop count; an entry is removed
         # only once the URL is written or errored, so an interruption never
@@ -148,21 +158,19 @@ class _CrawlSpider(scrapy.Spider):
 
         norm = normalize(response.url)
         if norm not in self.written:
-            if self.config.limit and self.writer.page_count >= self.config.limit:
+            if self.config.limit and len(self.written) >= self.config.limit:
                 self.outcome["truncated"] = True
                 raise CloseSpider("page limit reached")
             self.written.add(norm)
             extracted = extract_page(response.text, response.url, selector=self.config.selector)
-            self.writer.write_page(
-                PageRecord(
-                    url=response.url,
-                    title=extracted.title,
-                    markdown=extracted.markdown,
-                    status=response.status,
-                    crawled_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    canonical=extracted.canonical,
-                    html=response.text if self.config.keep_html else None,
-                )
+            record = PageRecord(
+                url=response.url,
+                title=extracted.title,
+                markdown=extracted.markdown,
+                status=response.status,
+                crawled_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                canonical=extracted.canonical,
+                html=response.text if self.config.keep_html else None,
             )
             if shellish:
                 # Rendering is off or unavailable: written as-is, flagged.
@@ -171,7 +179,28 @@ class _CrawlSpider(scrapy.Spider):
             self.outcome["harvests"].append(
                 {"page": response.url, **harvest_nav(response.text, response.url)}
             )
-            self._progress()
+
+            assets = list(dict.fromkeys(extracted.assets)) if self.config.download_media else []
+            waiting = set()
+            for asset_url in assets:
+                if asset_url in self.asset_results:
+                    continue
+                waiting.add(asset_url)
+                if asset_url not in self.asset_inflight:
+                    self.asset_inflight.add(asset_url)
+                    yield scrapy.Request(
+                        asset_url,
+                        callback=self.on_asset,
+                        errback=self.on_asset_error,
+                        meta={"download_maxsize": self.media_cap_bytes},
+                        dont_filter=True,
+                    )
+            if waiting:
+                self.pending_pages.append(
+                    {"record": record, "assets": assets, "waiting": waiting}
+                )
+            else:
+                self._finalize_page(record, assets)
         self.pending.pop(response.request.url, None)
 
         if not self.follow_links or not isinstance(response, TextResponse):
@@ -181,6 +210,49 @@ class _CrawlSpider(scrapy.Spider):
             return
         for href in response.css("a::attr(href)").getall():
             yield from self._enqueue_page(response.urljoin(href.strip()), hops=hops + 1)
+
+    # -- assets (--download-media; Scope never applies, ADR-0005) -----------
+
+    def on_asset(self, response):
+        relpath = self.asset_store.save(response.request.url, response.body)
+        self._resolve_asset(response.request.url, relpath)
+
+    def on_asset_error(self, failure):
+        url = failure.request.url
+        reason = (failure.getErrorMessage() or failure.type.__name__)[:200]
+        self.outcome["media_skipped"].append({"url": url, "reason": reason})
+        self._resolve_asset(url, None)
+
+    def _resolve_asset(self, url: str, relpath: str | None) -> None:
+        self.asset_results[url] = relpath
+        self.asset_inflight.discard(url)
+        still_waiting = []
+        for page in self.pending_pages:
+            page["waiting"].discard(url)
+            if page["waiting"]:
+                still_waiting.append(page)
+            else:
+                self._finalize_page(page["record"], page["assets"])
+        self.pending_pages = still_waiting
+
+    def _finalize_page(self, record: PageRecord, assets: list[str]) -> None:
+        markdown = record.markdown
+        for url in assets:
+            relpath = self.asset_results.get(url)
+            if relpath:
+                markdown = markdown.replace(url, self._asset_link(record.url, relpath))
+        if markdown is not record.markdown:
+            record = replace(record, markdown=markdown)
+        self.writer.write_page(record)
+        self._progress()
+
+    def _asset_link(self, page_url: str, asset_relpath: str) -> str:
+        """files mode: relative from the page's .md location; jsonl mode:
+        root-relative (records have no on-disk location)."""
+        if isinstance(self.writer, FileTreeWriter):
+            page_rel = self.writer.path_for(page_url).relative_to(self.writer.output_dir)
+            return posixpath.relpath(asset_relpath, start=page_rel.parent.as_posix())
+        return asset_relpath
 
     def on_page_error(self, failure):
         self.pending.pop(failure.request.url, None)
@@ -245,6 +317,11 @@ class _CrawlSpider(scrapy.Spider):
                 yield scrapy.Request(url, callback=self.parse_sitemap)
 
     def closed(self, reason):
+        # Pages still waiting on Assets write now with whatever resolved;
+        # unresolved Assets keep their absolute URLs.
+        for page in self.pending_pages:
+            self._finalize_page(page["record"], page["assets"])
+        self.pending_pages = []
         state_file = state_file_for(self.config)
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(
@@ -259,6 +336,7 @@ class _CrawlSpider(scrapy.Spider):
                     "shells": self.outcome["shells"],
                     "crawl_sequence": self.crawl_sequence,
                     "harvests": self.outcome["harvests"],
+                    "media_skipped": self.outcome["media_skipped"],
                 }
             )
         )
@@ -279,6 +357,7 @@ def run_crawl(config: CrawlConfig) -> int:
         "skipped": list(resume_state["skipped"]) if resume_state else [],
         "shells": list(resume_state.get("shells", [])) if resume_state else [],
         "harvests": list(resume_state.get("harvests", [])) if resume_state else [],
+        "media_skipped": list(resume_state.get("media_skipped", [])) if resume_state else [],
         # Shared with the spider, which appends as Pages are written.
         "crawl_sequence": list(resume_state.get("crawl_sequence", [])) if resume_state else [],
         "truncated": False,  # recomputed by this run: a resumed Crawl may finish
@@ -328,5 +407,6 @@ def run_crawl(config: CrawlConfig) -> int:
         shells=outcome["shells"],
         nav=nav,
         reading_order=reading_order,
+        media_skipped=outcome["media_skipped"],
     )
     return writer.page_count
