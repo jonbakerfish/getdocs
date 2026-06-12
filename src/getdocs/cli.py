@@ -14,7 +14,14 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     crawl = subparsers.add_parser("crawl", help="Run a Crawl from one or more seed URLs")
-    crawl.add_argument("seeds", nargs="+", metavar="URL", help="Seed URL(s) for the Crawl")
+    crawl.add_argument(
+        "seeds", nargs="*", metavar="URL",
+        help="Seed URL(s) for the Crawl (omit with --resume to reuse saved seeds)",
+    )
+    crawl.add_argument(
+        "--resume", action="store_true",
+        help="Continue the interrupted Crawl whose state lives in the output directory",
+    )
     crawl.add_argument(
         "-o", "--output-dir", type=Path, default=Path("./out"),
         help="Directory the Pages and Manifest are written to (default: ./out)",
@@ -78,8 +85,11 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
     )
 
     args = parser.parse_args(argv)
+    if not args.seeds and not args.resume:
+        crawl.error("at least one seed URL is required (or --resume)")
     return CrawlConfig(
         seeds=args.seeds,
+        resume=args.resume,
         output_dir=args.output_dir,
         allow_backward=args.allow_backward,
         allow_subdomains=args.allow_subdomains,
@@ -98,11 +108,28 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from getdocs.engine import run_crawl
-
+    import json
     import sys
+    from dataclasses import replace
+
+    from getdocs.engine import run_crawl, state_file_for
 
     config = parse_args(argv)
+    state_file = state_file_for(config)
+    if config.resume:
+        if not state_file.exists():
+            print(f"error: no crawl state found in {config.output_dir}", file=sys.stderr)
+            return 2
+        saved_seeds = json.loads(state_file.read_text())["seeds"]
+        config = replace(config, seeds=saved_seeds)
+    elif state_file.exists():
+        print(
+            f"note: found crawl state from an earlier run in {config.output_dir} — "
+            "starting over (use --resume to continue it)",
+            file=sys.stderr,
+        )
+        state_file.unlink()
+
     page_count = run_crawl(config)
     if page_count == 0:
         # stderr: stdout belongs to the jsonl stream (ADR-0002)

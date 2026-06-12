@@ -6,8 +6,10 @@ spawns this as a subprocess per Crawl.
 """
 
 import asyncio
+import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import scrapy
@@ -23,6 +25,10 @@ from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
 from getdocs.urlnorm import normalize
+
+
+def state_file_for(config: CrawlConfig) -> Path:
+    return config.output_dir / ".getdocs" / "crawl-state.json"
 
 
 class RetryAfterMiddleware:
@@ -50,11 +56,20 @@ class RetryAfterMiddleware:
 class _CrawlSpider(scrapy.Spider):
     name = "getdocs"
 
-    def __init__(self, config: CrawlConfig, writer, outcome: dict, **kwargs):
+    def __init__(
+        self, config: CrawlConfig, writer, outcome: dict, resume_state: dict | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.config = config
         self.writer = writer
         self.outcome = outcome
+        self.resume_state = resume_state
+        # Frontier bookkeeping, persisted across runs (see closed()).
+        # pending maps a yielded URL to its hop count; an entry is removed
+        # only once the URL is written or errored, so an interruption never
+        # loses in-flight work.
+        self.pending: dict[str, int] = {}
         self.scope = Scope.from_seeds(
             config.seeds,
             allow_backward=config.allow_backward,
@@ -63,8 +78,8 @@ class _CrawlSpider(scrapy.Spider):
             exclude_paths=config.exclude_paths,
         )
         self.follow_links = config.sitemap != "only"
-        self.enqueued: set[str] = set()
-        self.written: set[str] = set()
+        self.enqueued: set[str] = set(resume_state["enqueued"]) if resume_state else set()
+        self.written: set[str] = set(resume_state["written"]) if resume_state else set()
         self.sitemaps_fetched: set[str] = set()
 
     # -- discovery ---------------------------------------------------------
@@ -76,9 +91,14 @@ class _CrawlSpider(scrapy.Spider):
                 yield scrapy.Request(urljoin(root, "/robots.txt"), callback=self.parse_robots)
                 for request in self._sitemap_requests([urljoin(root, "/sitemap.xml")]):
                     yield request
-        if self.config.sitemap != "only":
+        if self.resume_state:
+            for url, hops in self.resume_state["pending"].items():
+                self.pending[url] = hops
+                yield self._page_request(url, hops=hops)
+        elif self.config.sitemap != "only":
             for seed in self.config.seeds:
                 self.enqueued.add(normalize(seed))
+                self.pending[seed] = 0
                 yield self._page_request(seed, hops=0)
 
     def parse_robots(self, response):
@@ -114,6 +134,7 @@ class _CrawlSpider(scrapy.Spider):
                 )
             )
             self._progress()
+        self.pending.pop(response.request.url, None)
 
         if not self.follow_links or not isinstance(response, TextResponse):
             return
@@ -124,6 +145,7 @@ class _CrawlSpider(scrapy.Spider):
             yield from self._enqueue_page(response.urljoin(href.strip()), hops=hops + 1)
 
     def on_page_error(self, failure):
+        self.pending.pop(failure.request.url, None)
         if failure.check(HttpError):
             response = failure.value.response
             error = {"url": response.url, "status": response.status, "reason": f"HTTP {response.status}"}
@@ -164,6 +186,7 @@ class _CrawlSpider(scrapy.Spider):
         if norm in self.enqueued:
             return
         self.enqueued.add(norm)
+        self.pending[url] = hops
         yield self._page_request(url, hops=hops)
 
     def _sitemap_requests(self, urls: list[str]):
@@ -172,6 +195,22 @@ class _CrawlSpider(scrapy.Spider):
                 self.sitemaps_fetched.add(url)
                 yield scrapy.Request(url, callback=self.parse_sitemap)
 
+    def closed(self, reason):
+        state_file = state_file_for(self.config)
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(
+            json.dumps(
+                {
+                    "seeds": self.config.seeds,
+                    "enqueued": sorted(self.enqueued),
+                    "written": sorted(self.written),
+                    "pending": self.pending,
+                    "errors": self.outcome["errors"],
+                    "skipped": self.outcome["skipped"],
+                }
+            )
+        )
+
 
 def run_crawl(config: CrawlConfig) -> int:
     """Run a Crawl to completion; returns the number of Pages produced."""
@@ -179,7 +218,15 @@ def run_crawl(config: CrawlConfig) -> int:
         writer = JsonlWriter(sys.stdout)
     else:
         writer = FileTreeWriter(config.output_dir)
-    outcome = {"errors": [], "skipped": [], "truncated": False}
+    resume_state = None
+    if config.resume:
+        resume_state = json.loads(state_file_for(config).read_text())
+        writer.page_count = len(resume_state["written"])
+    outcome = {
+        "errors": list(resume_state["errors"]) if resume_state else [],
+        "skipped": list(resume_state["skipped"]) if resume_state else [],
+        "truncated": False,  # recomputed by this run: a resumed Crawl may finish
+    }
     process = CrawlerProcess(
         settings={
             "LOG_LEVEL": "ERROR",
@@ -196,7 +243,9 @@ def run_crawl(config: CrawlConfig) -> int:
         },
         install_root_handler=False,
     )
-    process.crawl(_CrawlSpider, config=config, writer=writer, outcome=outcome)
+    process.crawl(
+        _CrawlSpider, config=config, writer=writer, outcome=outcome, resume_state=resume_state
+    )
     process.start()
     writer.write_manifest(
         seeds=config.seeds,

@@ -19,5 +19,6 @@ class CrawlConfig:
     sitemap: str = "both"  # "both", "off" (--no-sitemap), or "only" (--sitemap-only)
     selector: str | None = None  # CSS selector naming the content container
     ignore_robots: bool = False
+    resume: bool = False  # continue an interrupted Crawl from saved state
     delay: float = 1.0  # throttle start delay in seconds; 0 disables throttling
     concurrency: int = 4  # concurrent requests per domain
