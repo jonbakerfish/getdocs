@@ -57,6 +57,7 @@ class FileTreeWriter:
         errors: list[dict] | None = None,
         truncated: bool = False,
         skipped: list[dict] | None = None,
+        shells: list[str] | None = None,
     ) -> Path:
         target = self.output_dir / "crawl.json"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -67,6 +68,7 @@ class FileTreeWriter:
                     "page_count": self.page_count,
                     "errors": errors or [],
                     "skipped": skipped or [],
+                    "shells": shells or [],
                     "truncated": truncated,
                 },
                 indent=2,
@@ -102,6 +104,7 @@ class JsonlWriter:
         errors: list[dict] | None = None,
         truncated: bool = False,
         skipped: list[dict] | None = None,
+        shells: list[str] | None = None,
     ) -> None:
         self._emit(
             {
@@ -110,6 +113,7 @@ class JsonlWriter:
                 "page_count": self.page_count,
                 "errors": errors or [],
                 "skipped": skipped or [],
+                "shells": shells or [],
                 "truncated": truncated,
             }
         )

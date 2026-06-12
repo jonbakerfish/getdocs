@@ -20,7 +20,7 @@ from scrapy.http import TextResponse
 from scrapy.spidermiddlewares.httperror import HttpError
 
 from getdocs.config import CrawlConfig
-from getdocs.extract import extract_page
+from getdocs.extract import extract_page, is_shell
 from getdocs.output import FileTreeWriter, JsonlWriter, PageRecord
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
@@ -29,6 +29,15 @@ from getdocs.urlnorm import normalize
 
 def state_file_for(config: CrawlConfig) -> Path:
     return config.output_dir / ".getdocs" / "crawl-state.json"
+
+
+def playwright_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("scrapy_playwright") is not None
+
+
+_SHELL_LATCH_THRESHOLD = 2  # Shells on one host before it renders everything
 
 
 class RetryAfterMiddleware:
@@ -58,13 +67,15 @@ class _CrawlSpider(scrapy.Spider):
 
     def __init__(
         self, config: CrawlConfig, writer, outcome: dict, resume_state: dict | None = None,
-        **kwargs,
+        render_enabled: bool = False, **kwargs,
     ):
         super().__init__(**kwargs)
         self.config = config
         self.writer = writer
         self.outcome = outcome
         self.resume_state = resume_state
+        self.render_enabled = render_enabled
+        self.shell_hosts: dict[str, int] = {}
         # Frontier bookkeeping, persisted across runs (see closed()).
         # pending maps a yielded URL to its hop count; an entry is removed
         # only once the URL is written or errored, so an interruption never
@@ -115,6 +126,24 @@ class _CrawlSpider(scrapy.Spider):
     # -- fetching ----------------------------------------------------------
 
     def parse_page(self, response):
+        rendered = response.meta.get("playwright", False)
+        shellish = (
+            not rendered and isinstance(response, TextResponse) and is_shell(response.text)
+        )
+        if shellish and self.config.render == "auto" and self.render_enabled:
+            # Escalate: re-fetch through the browser. The pending entry
+            # survives until the rendered version is written.
+            host = urlsplit(response.url).netloc
+            self.shell_hosts[host] = self.shell_hosts.get(host, 0) + 1
+            yield scrapy.Request(
+                response.request.url,
+                callback=self.parse_page,
+                errback=self.on_page_error,
+                meta={"hops": response.meta["hops"], "playwright": True},
+                dont_filter=True,
+            )
+            return
+
         norm = normalize(response.url)
         if norm not in self.written:
             if self.config.limit and self.writer.page_count >= self.config.limit:
@@ -133,6 +162,9 @@ class _CrawlSpider(scrapy.Spider):
                     html=response.text if self.config.keep_html else None,
                 )
             )
+            if shellish:
+                # Rendering is off or unavailable: written as-is, flagged.
+                self.outcome["shells"].append(response.url)
             self._progress()
         self.pending.pop(response.request.url, None)
 
@@ -175,9 +207,20 @@ class _CrawlSpider(scrapy.Spider):
         )
 
     def _page_request(self, url: str, hops: int) -> scrapy.Request:
+        meta = {"hops": hops}
+        if self._should_render(url):
+            meta["playwright"] = True
         return scrapy.Request(
-            url, callback=self.parse_page, errback=self.on_page_error, meta={"hops": hops}
+            url, callback=self.parse_page, errback=self.on_page_error, meta=meta
         )
+
+    def _should_render(self, url: str) -> bool:
+        if not self.render_enabled:
+            return False
+        if self.config.render == "always":
+            return True
+        host = urlsplit(url).netloc
+        return self.shell_hosts.get(host, 0) >= _SHELL_LATCH_THRESHOLD
 
     def _enqueue_page(self, url: str, hops: int):
         if not self.scope.allows(url):
@@ -207,6 +250,7 @@ class _CrawlSpider(scrapy.Spider):
                     "pending": self.pending,
                     "errors": self.outcome["errors"],
                     "skipped": self.outcome["skipped"],
+                    "shells": self.outcome["shells"],
                 }
             )
         )
@@ -225,26 +269,43 @@ def run_crawl(config: CrawlConfig) -> int:
     outcome = {
         "errors": list(resume_state["errors"]) if resume_state else [],
         "skipped": list(resume_state["skipped"]) if resume_state else [],
+        "shells": list(resume_state.get("shells", [])) if resume_state else [],
         "truncated": False,  # recomputed by this run: a resumed Crawl may finish
     }
-    process = CrawlerProcess(
-        settings={
-            "LOG_LEVEL": "ERROR",
-            "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
-            "RETRY_TIMES": 2,
-            # 429 is handled by RetryAfterMiddleware, which honors Retry-After.
-            "RETRY_HTTP_CODES": [500, 502, 503, 504, 522, 524, 408],
-            "DOWNLOADER_MIDDLEWARES": {RetryAfterMiddleware: 560},
-            "ROBOTSTXT_OBEY": not config.ignore_robots,
-            "DOWNLOAD_DELAY": config.delay,
-            "AUTOTHROTTLE_ENABLED": config.delay > 0,
-            "AUTOTHROTTLE_START_DELAY": config.delay or 1.0,
-            "CONCURRENT_REQUESTS_PER_DOMAIN": config.concurrency,
-        },
-        install_root_handler=False,
-    )
+    render_enabled = config.render != "never" and playwright_available()
+    if config.render != "never" and not render_enabled:
+        print(
+            "note: scrapy-playwright is not installed — JS rendering disabled; "
+            "Shell pages will be written as-is and flagged in the Manifest",
+            file=sys.stderr,
+        )
+    settings = {
+        "LOG_LEVEL": "ERROR",
+        "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
+        "RETRY_TIMES": 2,
+        # 429 is handled by RetryAfterMiddleware, which honors Retry-After.
+        "RETRY_HTTP_CODES": [500, 502, 503, 504, 522, 524, 408],
+        "DOWNLOADER_MIDDLEWARES": {RetryAfterMiddleware: 560},
+        "ROBOTSTXT_OBEY": not config.ignore_robots,
+        "DOWNLOAD_DELAY": config.delay,
+        "AUTOTHROTTLE_ENABLED": config.delay > 0,
+        "AUTOTHROTTLE_START_DELAY": config.delay or 1.0,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": config.concurrency,
+    }
+    if render_enabled:
+        settings["DOWNLOAD_HANDLERS"] = {
+            "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+            "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+        }
+        settings["TWISTED_REACTOR"] = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+    process = CrawlerProcess(settings=settings, install_root_handler=False)
     process.crawl(
-        _CrawlSpider, config=config, writer=writer, outcome=outcome, resume_state=resume_state
+        _CrawlSpider,
+        config=config,
+        writer=writer,
+        outcome=outcome,
+        resume_state=resume_state,
+        render_enabled=render_enabled,
     )
     process.start()
     writer.write_manifest(
@@ -252,5 +313,6 @@ def run_crawl(config: CrawlConfig) -> int:
         errors=outcome["errors"],
         truncated=outcome["truncated"],
         skipped=outcome["skipped"],
+        shells=outcome["shells"],
     )
     return writer.page_count

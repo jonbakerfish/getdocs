@@ -68,6 +68,11 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         help="CSS selector for the content container (overrides auto-detection)",
     )
     crawl.add_argument(
+        "--render", choices=["auto", "always", "never"], default="auto",
+        help="JavaScript rendering: auto re-fetches detected SPA shells via a "
+             "headless browser, always renders everything, never disables it",
+    )
+    crawl.add_argument(
         "--ignore-robots", action="store_true",
         help="Consciously override robots.txt rules",
     )
@@ -101,6 +106,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         keep_html=args.keep_html,
         sitemap=args.sitemap,
         selector=args.selector,
+        render=args.render,
         ignore_robots=args.ignore_robots,
         delay=args.delay,
         concurrency=args.concurrency,
@@ -112,9 +118,16 @@ def main(argv: list[str] | None = None) -> int:
     import sys
     from dataclasses import replace
 
-    from getdocs.engine import run_crawl, state_file_for
+    from getdocs.engine import playwright_available, run_crawl, state_file_for
 
     config = parse_args(argv)
+    if config.render == "always" and not playwright_available():
+        print(
+            "error: --render always needs scrapy-playwright "
+            "(pip install scrapy-playwright && playwright install chromium)",
+            file=sys.stderr,
+        )
+        return 2
     state_file = state_file_for(config)
     if config.resume:
         if not state_file.exists():

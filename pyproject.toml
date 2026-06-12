@@ -13,6 +13,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "pyyaml>=6.0",
     "trafilatura>=1.12",
+    "scrapy-playwright>=0.0.40",
 ]
 
 [project.optional-dependencies]

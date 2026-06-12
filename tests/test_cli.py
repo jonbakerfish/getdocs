@@ -70,6 +70,12 @@ def test_politeness_flags_and_defaults():
     assert config.concurrency == 8
 
 
+def test_render_mode_flag():
+    assert parse_args(["crawl", "https://x.com/d"]).render == "auto"
+    assert parse_args(["crawl", "https://x.com/d", "--render", "always"]).render == "always"
+    assert parse_args(["crawl", "https://x.com/d", "--render", "never"]).render == "never"
+
+
 def test_selector_flag():
     config = parse_args(["crawl", "https://example.com/docs", "--selector", "#content"])
 

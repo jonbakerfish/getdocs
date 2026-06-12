@@ -81,6 +81,34 @@ def _readability_markdown(html: str) -> str | None:
     return trafilatura.extract(html, output_format="markdown", include_tables=True)
 
 
+_ROOT_DIV_IDS = ["root", "app", "__next", "___gatsby", "__nuxt"]
+
+
+def is_shell(html: str) -> bool:
+    """True when a response is an unhydrated client-side app frame rather
+    than real content — the signal that triggers render escalation."""
+    soup = BeautifulSoup(html, "html.parser")
+    body = soup.body
+    if body is None:
+        return False
+
+    noscript_warning = any(
+        "javascript" in ns.get_text().lower() for ns in body.find_all("noscript")
+    )
+    has_scripts = bool(soup.find("script"))
+
+    for tag in body.find_all(["script", "noscript", "style", "template"]):
+        tag.decompose()
+    text = body.get_text(strip=True)
+    if len(text) > 200:
+        return False  # plenty of real text — not a shell, whatever else it has
+
+    empty_root = any(
+        not div.get_text(strip=True) for div in body.find_all("div", id=_ROOT_DIV_IDS)
+    )
+    return empty_root or noscript_warning or (has_scripts and len(text) < 30)
+
+
 def extract_page(html: str, url: str, selector: str | None = None) -> ExtractedPage:
     soup = BeautifulSoup(html, "html.parser")
 
