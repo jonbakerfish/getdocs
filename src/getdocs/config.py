@@ -23,3 +23,9 @@ class CrawlConfig:
     resume: bool = False  # continue an interrupted Crawl from saved state
     delay: float = 1.0  # throttle start delay in seconds; 0 disables throttling
     concurrency: int = 4  # concurrent requests per domain
+
+
+@dataclass(frozen=True)
+class ServeConfig:
+    host: str = "127.0.0.1"
+    port: int = 8000

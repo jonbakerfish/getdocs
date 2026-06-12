@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from getdocs.cli import parse_args
+from getdocs.config import ServeConfig
 
 
 def test_crawl_args_become_crawl_config():
@@ -74,6 +75,13 @@ def test_render_mode_flag():
     assert parse_args(["crawl", "https://x.com/d"]).render == "auto"
     assert parse_args(["crawl", "https://x.com/d", "--render", "always"]).render == "always"
     assert parse_args(["crawl", "https://x.com/d", "--render", "never"]).render == "never"
+
+
+def test_serve_subcommand_parses_host_and_port():
+    config = parse_args(["serve", "--host", "0.0.0.0", "--port", "9000"])
+
+    assert config == ServeConfig(host="0.0.0.0", port=9000)
+    assert parse_args(["serve"]) == ServeConfig()
 
 
 def test_selector_flag():

@@ -3,10 +3,10 @@
 import argparse
 from pathlib import Path
 
-from getdocs.config import CrawlConfig
+from getdocs.config import CrawlConfig, ServeConfig
 
 
-def parse_args(argv: list[str] | None = None) -> CrawlConfig:
+def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
     parser = argparse.ArgumentParser(
         prog="getdocs",
         description="Crawl a documentation site and emit clean markdown.",
@@ -89,7 +89,13 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig:
         help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
     )
 
+    serve = subparsers.add_parser("serve", help="Run the getdocs API service")
+    serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    serve.add_argument("--port", type=int, default=8000, help="Port (default: 8000)")
+
     args = parser.parse_args(argv)
+    if args.command == "serve":
+        return ServeConfig(host=args.host, port=args.port)
     if not args.seeds and not args.resume:
         crawl.error("at least one seed URL is required (or --resume)")
     return CrawlConfig(
@@ -121,6 +127,19 @@ def main(argv: list[str] | None = None) -> int:
     from getdocs.engine import playwright_available, run_crawl, state_file_for
 
     config = parse_args(argv)
+    if isinstance(config, ServeConfig):
+        try:
+            import uvicorn
+
+            from getdocs.api import create_app
+        except ImportError:
+            print(
+                'error: getdocs serve needs the server extra (pip install "getdocs[server]")',
+                file=sys.stderr,
+            )
+            return 2
+        uvicorn.run(create_app(), host=config.host, port=config.port)
+        return 0
     if config.render == "always" and not playwright_available():
         print(
             "error: --render always needs scrapy-playwright "
