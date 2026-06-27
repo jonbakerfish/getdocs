@@ -46,6 +46,26 @@ canonical: https://example.com/docs/latest/auth   # only when the page declares 
 ...
 ```
 
+## Source-first: clone instead of crawl
+
+Before crawling, getdocs fetches the seed page and checks whether it links back
+to a public source repository — the "Edit this page" / "Edit on GitHub" link
+that MkDocs, Docusaurus, and Sphinx sites render. When it finds one, getdocs
+clones that repo instead of crawling (the markdown source beats scraped HTML)
+and writes an `mkdocs.yml` so you can serve the docs locally:
+
+```bash
+getdocs crawl https://example.com/docs -o ./out
+# found source repository https://github.com/example/docs — cloning…
+# cloned to out/docs; wrote out/mkdocs.yml
+# serve it with: mkdocs serve -f out/mkdocs.yml
+```
+
+If the repo ships its own `mkdocs.yml`, getdocs points you at that instead of
+overwriting it. When no repo is linked (or the clone fails, or git is missing),
+getdocs falls back to crawling automatically. This behavior is **on by
+default** in files mode; pass `--no-clone-source` to always crawl.
+
 ## What gets crawled (Scope)
 
 By default a Crawl is limited to the **same host and path prefix** as the seed

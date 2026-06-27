@@ -66,9 +66,10 @@ def test_resume_without_state_fails_clearly(tmp_path):
 
 def test_fresh_run_on_dirty_dir_states_it_starts_over(site, tmp_path):
     build_chain_site(site)
-    run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path), "--limit", "2")
+    # --no-clone-source: count only crawl fetches, not the source pre-check.
+    run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path), "--limit", "2", "--no-clone-source")
 
-    result = run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path))
+    result = run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path), "--no-clone-source")
 
     assert result.returncode == 0, result.stderr
     assert "starting over" in result.stderr.lower()

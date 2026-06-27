@@ -31,7 +31,9 @@ def test_auto_mode_renders_shells_and_leaves_static_pages_alone(site, tmp_path):
     site.add("/docs/", page("Home", '<h1>Home</h1><a href="/docs/app">App</a>'))
     site.add("/docs/app", shell("App", "<main><h1>Hydrated Content</h1></main>"))
 
-    result = run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path))
+    # --no-clone-source: isolate crawl fetches from the source pre-check, which
+    # would otherwise fetch the seed once before falling back to crawling.
+    result = run_getdocs("crawl", f"{site.url}/docs/", "-o", str(tmp_path), "--no-clone-source")
 
     assert result.returncode == 0, result.stderr
     assert "Hydrated Content" in (tmp_path / "docs" / "app.md").read_text()

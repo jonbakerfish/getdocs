@@ -25,6 +25,7 @@ class CrawlConfig:
     concurrency: int = 4  # concurrent requests per domain
     download_media: bool = False  # fetch referenced Assets into _media/
     media_max_size: float = 50.0  # per-Asset cap in MB; larger files stay hotlinked
+    clone_source: bool = True  # clone the docs' source repo if the site is open-source
 
 
 @dataclass(frozen=True)

@@ -101,6 +101,11 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         "--keep-html", action="store_true",
         help="Also keep each Page's raw HTML (sidecar file / jsonl field)",
     )
+    crawl.add_argument(
+        "--no-clone-source", dest="clone_source", action="store_false", default=True,
+        help="Always crawl, even when the docs site links a public source repo "
+             "(by default getdocs clones that repo instead of crawling)",
+    )
 
     serve = subparsers.add_parser("serve", help="Run the getdocs API service")
     serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
@@ -140,6 +145,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         concurrency=args.concurrency,
         download_media=args.download_media,
         media_max_size=args.media_max_size,
+        clone_source=args.clone_source,
     )
 
 
@@ -171,6 +177,14 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    # Source-first (ADR-0006): if the docs site is open-source, clone its repo
+    # instead of crawling. Files-mode only — jsonl is a page stream with no
+    # place for a clone; --resume continues an existing crawl.
+    if config.format == "files" and config.clone_source and not config.resume and config.seeds:
+        from getdocs.source import clone_source_for
+
+        if clone_source_for(config) is not None:
+            return 0
     state_file = state_file_for(config)
     if config.resume:
         if not state_file.exists():
