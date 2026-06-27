@@ -78,7 +78,8 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
     )
     crawl.add_argument(
         "--ignore-robots", action="store_true",
-        help="Consciously override robots.txt rules",
+        help="Consciously override robots.txt rules — only for sites you own "
+             "or have permission to crawl",
     )
     crawl.add_argument(
         "--delay", type=float, default=1.0, metavar="SECONDS",

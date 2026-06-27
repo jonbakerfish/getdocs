@@ -118,8 +118,12 @@ getdocs is a tool; how you point it is on you. By default it **honors
 `robots.txt`**, throttles itself politely, and **identifies itself honestly**
 in the `User-Agent` (`getdocs/<version> (+project-url)`) — please keep it that
 way. For high-volume crawls, add `--contact you@example.com` so site operators
-can reach you (it's appended to the User-Agent; optional but courteous). You are
-responsible for respecting each site's Terms of Service, rate limits, and the
-copyright of the content you fetch. Crawled documentation belongs to its
-authors: use it for your own reference, agents, or RAG, but don't redistribute
-someone else's docs as your own. Crawl only what you have the right to.
+can reach you (it's appended to the User-Agent; optional but courteous).
+
+getdocs is intended for personal, reference, and agent/RAG use on documentation
+you have the right to access. **You are solely responsible for complying with
+each site's Terms of Service, its `robots.txt`, applicable law, and the
+copyright of the content you fetch** — getdocs is provided as-is, with no
+warranty (see [LICENSE](LICENSE)). Crawled documentation belongs to its authors:
+use it for your own reference, but don't redistribute someone else's docs as
+your own. Crawl only what you have the right to.
