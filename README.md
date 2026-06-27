@@ -73,6 +73,54 @@ Sitemap discovery, JavaScript rendering, source-repo cloning, polite
 throttling, JSONL output, and resumable crawls are all built in — see
 [docs/USAGE.md](docs/USAGE.md).
 
+## Use with your agent
+
+getdocs is built to be driven by a coding agent: it's an ordinary CLI whose
+`out/` tree + `crawl.json` Manifest *is* the return value (no MCP server, no job
+protocol — see [ADR-0007](docs/adr/0007-agent-integration-is-the-cli-not-an-mcp-surface.md)).
+Two patterns cover most uses.
+
+**Synchronous — fetch one docs section.** Scope defaults to the seed's host +
+path prefix, so pointing at a subtree fetches just that subtree. This blocks
+until done and works under any agent:
+
+```bash
+getdocs crawl https://example.com/docs/auth -o ./out --summary-json
+```
+
+**Background — mirror a whole site.** Kick the crawl off as a background task
+and keep working. Under **Claude Code** the agent is resumed automatically when
+the crawl finishes; every other agent surveyed blocks or polls the output path
+instead (this is a harness feature, not a getdocs one):
+
+```bash
+getdocs crawl https://example.com/docs -o ./out --summary-json &
+```
+
+**Read the summary, branch on the Outcome.** Every run ends with a one-line
+summary on stderr; `--summary-json` adds a machine-readable object discriminated
+by `outcome`. A run produces exactly one Outcome — a Crawl or a Clone:
+
+```jsonc
+// outcome: "crawled" — getdocs scraped the rendered site
+{ "outcome": "crawled", "status": "ok", "pages": 42,
+  "output_dir": "./out", "manifest": "./out/crawl.json", "truncated": false }
+
+// outcome: "cloned" — the docs were open-source, so getdocs cloned the repo
+// (no pages / no manifest: a Clone is not a Crawl)
+{ "outcome": "cloned", "status": "ok", "repo": "acme/docs",
+  "output_dir": "./out/docs", "mkdocs_config": "./out/mkdocs.yml" }
+```
+
+Have the agent switch on `outcome`:
+
+- **`crawled`** → grep and read the Pages under `output_dir` and follow the nav
+  / reading order in `manifest` (`crawl.json`).
+- **`cloned`** → you have the original markdown source; serve it with
+  `mkdocs serve -f <mkdocs_config>` (or just read the files under `output_dir`).
+- **`status: "truncated"`** → the crawl hit its page cap; re-run with a higher
+  `--limit` (or `0` for unlimited) to get the rest.
+
 ## Install
 
 Requires **Python 3.12+**.
