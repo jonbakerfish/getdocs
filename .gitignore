@@ -6,3 +6,7 @@ out/
 .DS_Store
 
 urls.txt
+
+# Build artifacts
+/dist/
+/build/

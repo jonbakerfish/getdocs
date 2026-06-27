@@ -1,12 +1,28 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "getdocs"
 version = "0.1.0"
 description = "Documentation crawler: recursively crawl a docs site and emit clean markdown"
+readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "jonbakerfish", email = "jonbakerfish@gmail.com" }]
+keywords = ["documentation", "crawler", "scraper", "markdown", "docs", "llm", "agents", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
 dependencies = [
     "scrapy>=2.11",
     "markdownify>=0.13",
@@ -15,6 +31,12 @@ dependencies = [
     "trafilatura>=1.12",
     "scrapy-playwright>=0.0.40",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jonbakerfish/getdocs"
+Repository = "https://github.com/jonbakerfish/getdocs"
+Issues = "https://github.com/jonbakerfish/getdocs/issues"
+Documentation = "https://github.com/jonbakerfish/getdocs/blob/main/docs/USAGE.md"
 
 [project.optional-dependencies]
 server = ["fastapi>=0.110", "uvicorn>=0.27", "httpx>=0.27"]
