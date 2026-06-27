@@ -112,6 +112,17 @@ def test_command_states_which_mode_it_picked():
     assert "which mode" in text or "tell the user" in text
 
 
+def test_plugin_is_discoverable_by_crawl_and_scrape():
+    # Marketplace search hits keywords + descriptions, so both must carry the
+    # words users actually search for.
+    manifest = _plugin_manifest()
+    keywords = {k.lower() for k in manifest.get("keywords", [])}
+    assert {"crawl", "scrape"} <= keywords
+    for term in ("crawl", "scrape"):
+        assert term in manifest["description"].lower()
+        assert term in _plugin_entry()["description"].lower()
+
+
 def test_readme_install_commands_match_the_manifest_names():
     # #27: the documented install commands must stay consistent with the actual
     # marketplace name + plugin name, so a rename can't silently break the docs.

@@ -1,5 +1,5 @@
 ---
-description: Fetch a documentation site into the workspace as clean local markdown (via the getdocs CLI). Pass the docs URL.
+description: Crawl and scrape a documentation site into the workspace as clean local markdown (via the getdocs CLI). Pass the docs URL.
 argument-hint: <docs-url>
 ---
 

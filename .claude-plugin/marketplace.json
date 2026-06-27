@@ -11,7 +11,7 @@
     {
       "name": "getdocs",
       "source": "./plugins/getdocs",
-      "description": "Pull a documentation site into your workspace as clean local markdown — the /getdocs command wraps the getdocs CLI (no install needed via uvx).",
+      "description": "Crawl and scrape a documentation site into your workspace as clean local markdown — the /getdocs command wraps the getdocs CLI (no install needed via uvx).",
       "version": "0.2.0"
     }
   ]
