@@ -1,0 +1,39 @@
+name: CI
+
+# Runs the test suite (which includes the plugin & marketplace manifest checks
+# in tests/test_plugin_manifest.py) and the official Claude Code plugin
+# validator, so a malformed manifest can never be merged.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package + dev deps
+        run: python -m pip install -e ".[dev]"
+      - name: Install headless browser (render e2e tests)
+        run: python -m playwright install --with-deps chromium
+      - name: Run tests
+        run: pytest -q
+
+  validate-plugin:
+    name: Validate plugin & marketplace manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate manifests (strict)
+        run: claude plugin validate . --strict
