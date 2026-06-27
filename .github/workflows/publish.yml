@@ -1,0 +1,57 @@
+name: Publish to PyPI
+
+# Publishes to PyPI when you cut a GitHub Release. No API token is stored:
+# the publish job authenticates to PyPI over OIDC (Trusted Publishing), which
+# requires the `id-token: write` permission and a matching trusted-publisher
+# entry configured on PyPI (see SETUP below).
+#
+# SETUP (one-time, on PyPI):
+#   PyPI -> your project (or "Publishing" for a not-yet-existing project) ->
+#   Add a new pending publisher:
+#     Owner:        jonbakerfish
+#     Repository:   getdocs
+#     Workflow:     publish.yml
+#     Environment:  pypi
+#   Then bump `version` in pyproject.toml, push a tag, and create a Release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}  # allow manual runs from the Actions tab
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+          python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # The environment name must match the one in the PyPI trusted-publisher config.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/getdocs
+    permissions:
+      id-token: write  # OIDC token for Trusted Publishing — the only auth needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
