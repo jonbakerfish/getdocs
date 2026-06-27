@@ -88,3 +88,25 @@ def test_command_branches_on_every_outcome():
     text = _command_text()
     for token in ('"crawled"', '"cloned"', "truncated", "empty"):
         assert token in text, f"command should guide the {token} Outcome"
+
+
+def test_command_describes_both_execution_modes_and_the_heuristic():
+    text = _command_text().lower()
+    # Synchronous for a bounded section; background for a whole-site mirror.
+    assert "synchronous" in text
+    assert "background" in text
+    # A heuristic distinguishing the two cases is documented.
+    assert "section" in text and ("whole-site" in text or "whole site" in text)
+
+
+def test_command_notes_background_resume_is_claude_code_specific():
+    text = _command_text().lower()
+    # Claude Code resumes the agent on background-task completion (ADR-0007).
+    assert "resume" in text
+    assert "claude code" in text
+
+
+def test_command_states_which_mode_it_picked():
+    text = _command_text().lower()
+    # The command must tell the user which mode it chose and why.
+    assert "which mode" in text or "tell the user" in text
