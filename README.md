@@ -75,34 +75,41 @@ throttling, JSONL output, and resumable crawls are all built in — see
 
 ## Install
 
-Requires **Python 3.12+**. getdocs isn't on PyPI yet, so install from source:
+Requires **Python 3.12+**.
+
+```bash
+pip install getdocs
+```
+
+Or from source, for the latest unreleased changes:
 
 ```bash
 git clone https://github.com/jonbakerfish/getdocs
 cd getdocs
-conda create -n getdocs python=3.12 pip
-conda run -n getdocs python -m pip install -e .
+pip install -e .
 ```
 
 That's enough to crawl. Two optional pieces unlock more:
 
 ```bash
 # JavaScript rendering — the headless browser used to hydrate SPA docs
-conda run -n getdocs playwright install chromium
+playwright install chromium
 
 # Serve a crawled/cloned copy locally as a browsable site
-conda run -n getdocs python -m pip install mkdocs mkdocs-material
+pip install mkdocs mkdocs-material
 ```
 
 **`git`** must be on your `PATH` for source-first cloning (it almost always
 already is); without it, getdocs simply falls back to crawling. To run the
-optional API service, install the server extra: `pip install -e ".[server]"`.
+optional API service, install the server extra: `pip install "getdocs[server]"`.
 
 ## Development
 
 ```bash
-conda run -n getdocs python -m pip install -e ".[dev]"
-conda run -n getdocs python -m pytest
+git clone https://github.com/jonbakerfish/getdocs
+cd getdocs
+pip install -e ".[dev]"
+pytest
 ```
 
 ## Responsible use

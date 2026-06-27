@@ -5,13 +5,9 @@ page, or a structured JSONL stream.
 
 ## Install
 
-```bash
-conda create -n getdocs python=3.12 pip
-conda run -n getdocs python -m pip install -e .
-
-# Optional but recommended: the headless browser used for JS rendering
-conda run -n getdocs playwright install chromium
-```
+`pip install getdocs` (Python 3.12+). For optional extras (JS rendering,
+local serving, the API service) and a from-source install, see the
+[README](../README.md#install).
 
 ## Quickstart
 
