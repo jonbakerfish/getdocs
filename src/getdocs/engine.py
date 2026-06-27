@@ -23,6 +23,7 @@ from scrapy.spidermiddlewares.httperror import HttpError
 
 from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page, is_shell
+from getdocs.identity import build_user_agent
 from getdocs.navharvest import harvest_nav, merge_harvests
 from getdocs.output import AssetStore, FileTreeWriter, JsonlWriter, PageRecord, relink_pages
 from getdocs.scope import Scope
@@ -371,6 +372,9 @@ def run_crawl(config: CrawlConfig) -> int:
         )
     settings = {
         "LOG_LEVEL": "ERROR",
+        # Identify honestly as getdocs (not generic Scrapy); robots.txt matching
+        # uses this UA too. --contact appends the user's email/URL.
+        "USER_AGENT": build_user_agent(config.contact, config.user_agent),
         "REQUEST_FINGERPRINTER_IMPLEMENTATION": "2.7",
         "RETRY_TIMES": 2,
         # 429 is handled by RetryAfterMiddleware, which honors Retry-After.

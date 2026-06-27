@@ -23,6 +23,7 @@ import yaml
 from bs4 import BeautifulSoup
 
 from getdocs.config import CrawlConfig
+from getdocs.identity import build_user_agent
 
 # Hosts whose /ORG/REPO paths we recognize as clonable repositories.
 _GIT_HOSTS = {"github.com", "gitlab.com", "bitbucket.org", "codeberg.org"}
@@ -40,8 +41,6 @@ _REPO_SUBPATHS = {"edit", "blob", "tree", "raw", "commits", "blame", "wiki"}
 
 # Where doc sources commonly live inside a repo, in preference order.
 _DOCS_CANDIDATES = ["docs", "doc", "documentation", "site/docs", "website/docs", "content"]
-
-_USER_AGENT = "getdocs (+https://github.com/jonbakerfish/getdocs)"
 
 
 def repo_root_from_url(url: str) -> str | None:
@@ -121,9 +120,14 @@ def detect_repo(html: str, base_url: str = "") -> str | None:
     return max(candidates, key=lambda root: (candidates[root][0], candidates[root][1]))
 
 
-def fetch_html(url: str, timeout: float = 15.0, max_bytes: int = 3_000_000) -> str | None:
+def fetch_html(
+    url: str, user_agent: str | None = None,
+    timeout: float = 15.0, max_bytes: int = 3_000_000,
+) -> str | None:
     """Fetch a single page's HTML for detection; None on any error/non-HTML."""
-    request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    request = urllib.request.Request(
+        url, headers={"User-Agent": user_agent or build_user_agent()}
+    )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             content_type = response.headers.get("Content-Type", "").lower()
@@ -202,7 +206,7 @@ def clone_source_for(config: CrawlConfig) -> Path | None:
 
     host = urlsplit(seed).netloc or seed
     print(f"checking whether {host} is open-source…", file=sys.stderr)
-    html = fetch_html(seed)
+    html = fetch_html(seed, build_user_agent(config.contact, config.user_agent))
     if html is None:
         print("could not fetch the seed page — crawling instead", file=sys.stderr)
         return None

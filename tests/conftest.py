@@ -34,6 +34,7 @@ class FixtureSite:
         self.routes: dict[str, object] = {}
         self.hits: dict[str, int] = {}
         self.hit_times: dict[str, list[float]] = {}
+        self.user_agents: list[str] = []  # User-Agent of every GET, in order
         self.posts: list[tuple[str, dict | None]] = []
         self.post_status: dict[str, int] = {}
         site = self
@@ -42,6 +43,7 @@ class FixtureSite:
             def do_GET(self):
                 site.hits[self.path] = site.hits.get(self.path, 0) + 1
                 site.hit_times.setdefault(self.path, []).append(time.monotonic())
+                site.user_agents.append(self.headers.get("User-Agent", ""))
                 route = site.routes.get(self.path)
                 if isinstance(route, _Flaky):
                     if route.remaining_failures > 0:

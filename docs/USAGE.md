@@ -171,10 +171,19 @@ adapting to server latency), 4 concurrent requests per domain, robots.txt
 obeyed, and `429 Too Many Requests` retried no sooner than the server's
 `Retry-After` asks.
 
+Every request — including the source-first check — identifies itself honestly
+with a descriptive `User-Agent` (`getdocs/<version> (+project-url)`), which is
+also what `robots.txt` rules are matched against. Identifying a contact is
+crawling etiquette, not a requirement, so it's opt-in: `--contact` appends your
+email or URL to the User-Agent (recommended for high-volume crawls), and
+`--user-agent` overrides the string entirely.
+
 | Flag | Effect |
 |------|--------|
 | `--delay SECONDS` | Throttle start delay (default 1.0; `0` disables throttling) |
 | `--concurrency N` | Concurrent requests per domain (default 4) |
+| `--contact EMAIL_OR_URL` | Append a contact to the User-Agent so operators can reach you (optional) |
+| `--user-agent STRING` | Override the User-Agent string entirely |
 | `--ignore-robots` | Consciously override robots.txt |
 
 ## Interrupting and resuming

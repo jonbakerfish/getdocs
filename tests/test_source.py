@@ -156,7 +156,7 @@ def test_write_mkdocs_config(tmp_path):
 
 def test_clone_source_for_clones_and_writes_config(tmp_path, monkeypatch):
     out = tmp_path / "out"
-    monkeypatch.setattr(source, "fetch_html", lambda url: '<a href="https://github.com/acme/docs/edit/main/p.md" title="Edit this page">e</a>')
+    monkeypatch.setattr(source, "fetch_html", lambda url, ua=None: '<a href="https://github.com/acme/docs/edit/main/p.md" title="Edit this page">e</a>')
 
     def fake_clone(repo_url, dest_parent, timeout=180.0):
         assert repo_url == "https://github.com/acme/docs"
@@ -175,7 +175,7 @@ def test_clone_source_for_clones_and_writes_config(tmp_path, monkeypatch):
 
 
 def test_clone_source_for_falls_back_when_no_repo(tmp_path, monkeypatch):
-    monkeypatch.setattr(source, "fetch_html", lambda url: "<html>no repo here</html>")
+    monkeypatch.setattr(source, "fetch_html", lambda url, ua=None: "<html>no repo here</html>")
     config = CrawlConfig(seeds=["https://docs.acme.io/intro"], output_dir=tmp_path / "out")
     assert source.clone_source_for(config) is None
 
@@ -187,7 +187,7 @@ def test_clone_source_for_skips_non_http_seed(tmp_path):
 
 def test_clone_source_for_uses_repos_own_mkdocs_yml(tmp_path, monkeypatch):
     out = tmp_path / "out"
-    monkeypatch.setattr(source, "fetch_html", lambda url: '<a href="https://github.com/acme/docs">GitHub</a>')
+    monkeypatch.setattr(source, "fetch_html", lambda url, ua=None: '<a href="https://github.com/acme/docs">GitHub</a>')
 
     def fake_clone(repo_url, dest_parent, timeout=180.0):
         repo = dest_parent / "docs"

@@ -106,6 +106,15 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         help="Always crawl, even when the docs site links a public source repo "
              "(by default getdocs clones that repo instead of crawling)",
     )
+    crawl.add_argument(
+        "--contact", metavar="EMAIL_OR_URL",
+        help="Contact appended to the User-Agent so site operators can reach you "
+             "(recommended for high-volume crawls; optional)",
+    )
+    crawl.add_argument(
+        "--user-agent", metavar="STRING",
+        help="Override the User-Agent string getdocs sends entirely",
+    )
 
     serve = subparsers.add_parser("serve", help="Run the getdocs API service")
     serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
@@ -146,6 +155,8 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         download_media=args.download_media,
         media_max_size=args.media_max_size,
         clone_source=args.clone_source,
+        contact=args.contact,
+        user_agent=args.user_agent,
     )
 
 

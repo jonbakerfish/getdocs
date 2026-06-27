@@ -26,6 +26,8 @@ class CrawlConfig:
     download_media: bool = False  # fetch referenced Assets into _media/
     media_max_size: float = 50.0  # per-Asset cap in MB; larger files stay hotlinked
     clone_source: bool = True  # clone the docs' source repo if the site is open-source
+    contact: str | None = None  # email/URL appended to the User-Agent (crawling etiquette)
+    user_agent: str | None = None  # override the User-Agent string entirely
 
 
 @dataclass(frozen=True)
