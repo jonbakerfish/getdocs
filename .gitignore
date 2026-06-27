@@ -10,3 +10,7 @@ urls.txt
 # Build artifacts
 /dist/
 /build/
+
+# Local dev notes (untracked)
+/PROMPT.md
+/TODO.md
