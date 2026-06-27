@@ -8,6 +8,14 @@ A documentation crawler: given one or more seed URLs, it recursively discovers a
 One traversal job that starts from Seed URLs and fetches every Page allowed by its Scope.
 _Avoid_: scrape (that's a single page), spider run, job (reserved for the future API layer)
 
+**Outcome**:
+What a single getdocs run produces — exactly one of a Crawl or a Clone.
+_Avoid_: result, output
+
+**Clone**:
+The source-repo result when the docs site is open-source — a cloned repository plus a generated serve config — produced instead of a Crawl. Yields no Pages and no Manifest.
+_Avoid_: download, mirror, checkout
+
 **Seed URL**:
 A starting URL the user provides to a Crawl.
 _Avoid_: root URL, entry point
@@ -42,6 +50,8 @@ _Avoid_: page order (ambiguous with crawl order), webpage order
 
 ## Relationships
 
+- A getdocs run produces exactly one **Outcome**: a **Crawl** or a **Clone**
+- A **Clone** bypasses traversal, so it has no **Scope**, **Pages**, or **Manifest**; it is *not* a Crawl
 - A **Crawl** has one or more **Seed URLs** and exactly one **Scope**
 - A **Crawl** produces zero or more **Pages** and exactly one **Manifest**
 - A **Scope** is derived from the **Seed URLs** plus user overrides (backward, subdomains, path globs)
@@ -55,4 +65,5 @@ _Avoid_: page order (ambiguous with crawl order), webpage order
 
 ## Flagged ambiguities
 
-- The PROMPT uses "getdocs" for both a CLI tool and an API service — resolved: it is a layered system; the crawl engine + CLI ship first, the API service wraps the same engine later.
+- The PROMPT uses "getdocs" for both a CLI tool and an API service — resolved: it is a layered system; the crawl engine + CLI ship first, the API service wraps the same engine later. Agent integration is the CLI run as a background task by the agent's own harness, not a new surface — it produces the same Outcome (Crawl or Clone).
+- The `crawl` command can produce a **Clone**, not a Crawl, when source-first detection finds the docs' public repo — resolved: the command name reflects intent ("get me these docs"), not the mechanism; a run yields one **Outcome**, and Clone is a sibling of Crawl, never a kind of Crawl.
