@@ -110,3 +110,13 @@ def test_command_states_which_mode_it_picked():
     text = _command_text().lower()
     # The command must tell the user which mode it chose and why.
     assert "which mode" in text or "tell the user" in text
+
+
+def test_readme_install_commands_match_the_manifest_names():
+    # #27: the documented install commands must stay consistent with the actual
+    # marketplace name + plugin name, so a rename can't silently break the docs.
+    readme = (REPO / "README.md").read_text()
+    market_name = _marketplace()["name"]
+    plugin_name = _plugin_entry()["name"]
+    assert f"claude plugin install {plugin_name}@{market_name}" in readme
+    assert "claude plugin marketplace add jonbakerfish/getdocs" in readme

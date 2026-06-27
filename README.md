@@ -78,6 +78,45 @@ throttling, JSONL output, and resumable crawls are all built in — see
 getdocs is built to be driven by a coding agent: it's an ordinary CLI whose
 `out/` tree + `crawl.json` Manifest *is* the return value (no MCP server, no job
 protocol — see [ADR-0007](docs/adr/0007-agent-integration-is-the-cli-not-an-mcp-surface.md)).
+If your agent is **Claude Code**, the [one-step plugin](#claude-code-plugin-one-step-install)
+below wires this up for you; **any other agent** drives the CLI directly.
+
+### Claude Code plugin (one-step install)
+
+getdocs ships a Claude Code plugin that adds a `/getdocs` command — no Python
+install needed. The getdocs repository doubles as the plugin marketplace:
+
+```bash
+# 1. Add this repo as a plugin marketplace
+claude plugin marketplace add jonbakerfish/getdocs
+
+# 2. Install the plugin
+claude plugin install getdocs@getdocs
+```
+
+Then, inside Claude Code:
+
+```
+/getdocs https://example.com/docs/auth
+```
+
+Your only prerequisite is [`uv`](https://docs.astral.sh/uv/) on your `PATH`: the
+command runs getdocs through `uvx`, so getdocs itself is fetched on demand and
+there's nothing to `pip install`. It picks the mode for you — a bounded
+**synchronous** run for a specific docs section, or a **background** run for a
+whole-site mirror (which Claude Code resumes on completion) — reads the Outcome
+summary, then points you at the Pages to grep (a Crawl) or offers to serve the
+docs (a Clone).
+
+Update or remove it later with:
+
+```bash
+claude plugin uninstall getdocs@getdocs     # remove the plugin
+claude plugin marketplace remove getdocs    # forget the marketplace
+```
+
+### Drive the CLI directly (any agent)
+
 Two patterns cover most uses.
 
 **Synchronous — fetch one docs section.** Scope defaults to the seed's host +
