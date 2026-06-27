@@ -1,0 +1,18 @@
+{
+  "name": "getdocs",
+  "metadata": {
+    "description": "The getdocs plugin marketplace: pull documentation sites into your workspace as clean local markdown."
+  },
+  "owner": {
+    "name": "jonbakerfish",
+    "email": "jonbakerfish@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "getdocs",
+      "source": "./plugins/getdocs",
+      "description": "Pull a documentation site into your workspace as clean local markdown — the /getdocs command wraps the getdocs CLI (no install needed via uvx).",
+      "version": "0.2.0"
+    }
+  ]
+}

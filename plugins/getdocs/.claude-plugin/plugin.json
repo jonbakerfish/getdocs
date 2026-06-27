@@ -1,0 +1,12 @@
+{
+  "name": "getdocs",
+  "version": "0.2.0",
+  "description": "Pull documentation sites into your workspace as clean local markdown via the getdocs CLI.",
+  "author": {
+    "name": "jonbakerfish"
+  },
+  "homepage": "https://github.com/jonbakerfish/getdocs",
+  "repository": "https://github.com/jonbakerfish/getdocs",
+  "license": "MIT",
+  "keywords": ["documentation", "crawler", "markdown", "rag", "agent"]
+}

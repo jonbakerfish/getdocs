@@ -1,0 +1,90 @@
+"""Plugin & marketplace manifest validation (#24).
+
+The /getdocs plugin is a markdown/JSON instruction artifact, not Python
+behavior, so these tests assert the artifact is well-formed and self-consistent:
+the marketplace lists the plugin, the plugin manifest is valid, the command file
+exists, and the command invokes getdocs with the Outcome contract
+(--summary-json) plus the version pin it depends on. Behavioral correctness of
+crawling/cloning is covered by getdocs's own suite (and the #19 summary tests).
+"""
+
+import json
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+MARKETPLACE = REPO / ".claude-plugin" / "marketplace.json"
+
+
+def _marketplace() -> dict:
+    return json.loads(MARKETPLACE.read_text())
+
+
+def _plugin_entry() -> dict:
+    return next(p for p in _marketplace()["plugins"] if p["name"] == "getdocs")
+
+
+def _plugin_dir() -> Path:
+    return (REPO / _plugin_entry()["source"]).resolve()
+
+
+def _plugin_manifest() -> dict:
+    return json.loads((_plugin_dir() / ".claude-plugin" / "plugin.json").read_text())
+
+
+def _command_text() -> str:
+    return (_plugin_dir() / "commands" / "getdocs.md").read_text()
+
+
+def test_marketplace_lists_the_getdocs_plugin_and_its_dir_exists():
+    market = _marketplace()
+    assert market["name"]  # the install target: <plugin>@<marketplace name>
+    assert market["owner"]["name"]
+
+    entry = _plugin_entry()
+    assert entry["source"].startswith("./")  # same-repo relative source
+    assert entry["description"]
+
+    assert (_plugin_dir() / ".claude-plugin" / "plugin.json").exists()
+
+
+def test_plugin_manifest_is_valid_and_consistent_with_marketplace():
+    manifest = _plugin_manifest()
+    assert manifest["name"] == "getdocs"
+    assert manifest["description"]
+    # The validator rejects a version mismatch between the two manifests.
+    assert manifest["version"] == _plugin_entry()["version"]
+
+
+def test_command_file_exists_and_is_discoverable():
+    # Commands are auto-discovered from the plugin's commands/ directory.
+    assert (_plugin_dir() / "commands" / "getdocs.md").is_file()
+
+
+def test_command_invokes_getdocs_with_the_summary_json_contract():
+    text = _command_text()
+    assert "getdocs crawl" in text
+    assert "--summary-json" in text  # the Outcome contract this plugin depends on
+
+
+def test_command_pins_a_getdocs_version_with_summary_json():
+    # Must not run against a pre-0.2.0 build that lacks --summary-json (#24).
+    text = _command_text()
+    assert "uvx" in text
+    assert 'getdocs>=0.2.0' in text
+
+
+def test_command_preserves_polite_defaults():
+    # No getdocs invocation overrides robots.txt on the user's behalf. (The
+    # command may *mention* --ignore-robots to tell the agent not to use it;
+    # what matters is that no actual invocation line passes it.)
+    invocations = [
+        line for line in _command_text().splitlines() if "getdocs crawl" in line
+    ]
+    assert invocations  # there is at least one real invocation to check
+    assert all("--ignore-robots" not in line for line in invocations)
+
+
+def test_command_branches_on_every_outcome():
+    text = _command_text()
+    for token in ('"crawled"', '"cloned"', "truncated", "empty"):
+        assert token in text, f"command should guide the {token} Outcome"
