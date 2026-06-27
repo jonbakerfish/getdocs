@@ -55,7 +55,15 @@ def test_cancel_terminates_a_running_job_and_keeps_partial_pages(site):
     async def scenario():
         manager = JobManager()
         job = manager.start({"url": f"{site.url}/docs/", "delay": 0.3})
-        await asyncio.sleep(1.0)  # let a couple of pages land
+        # Wait until at least one Page has landed, then cancel — polling the
+        # precondition rather than sleeping a fixed interval keeps the test
+        # deterministic regardless of how long the crawl subprocess takes to
+        # boot on a loaded CI runner. The 0.3s delay leaves the 9-page crawl
+        # far from finished, so the cancel still keeps only partial results.
+        for _ in range(200):  # up to ~20s safety cap
+            if job.pages:
+                break
+            await asyncio.sleep(0.1)
         manager.cancel(job.id)
         await manager.wait(job.id)
         return job
