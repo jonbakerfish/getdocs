@@ -15,6 +15,7 @@ class CrawlConfig:
     depth: int = 0  # link-hops from any seed; 0 = unlimited
     limit: int = 1000  # max Pages per Crawl; 0 = unlimited
     format: str = "files"  # "files" or "jsonl"
+    summary_json: bool = False  # emit a machine-readable Outcome summary object
     keep_html: bool = False
     sitemap: str = "both"  # "both", "off" (--no-sitemap), or "only" (--sitemap-only)
     selector: str | None = None  # CSS selector naming the content container

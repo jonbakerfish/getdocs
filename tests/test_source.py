@@ -170,7 +170,9 @@ def test_clone_source_for_clones_and_writes_config(tmp_path, monkeypatch):
     config = CrawlConfig(seeds=["https://docs.acme.io/intro"], output_dir=out)
     result = source.clone_source_for(config)
 
-    assert result == out / "docs"
+    assert result.repo == "acme/docs"
+    assert result.output_dir == out / "docs"
+    assert result.mkdocs_config == out / "mkdocs.yml"
     assert (out / "mkdocs.yml").exists()
 
 
@@ -198,6 +200,9 @@ def test_clone_source_for_uses_repos_own_mkdocs_yml(tmp_path, monkeypatch):
     monkeypatch.setattr(source, "clone_repo", fake_clone)
     config = CrawlConfig(seeds=["https://docs.acme.io/"], output_dir=out)
 
-    assert source.clone_source_for(config) == out / "docs"
+    result = source.clone_source_for(config)
+    assert result.output_dir == out / "docs"
+    # The repo's own config is used as the serve config, not one we generate.
+    assert result.mkdocs_config == out / "docs" / "mkdocs.yml"
     # We don't overwrite a repo that already ships its own config.
     assert not (out / "mkdocs.yml").exists()

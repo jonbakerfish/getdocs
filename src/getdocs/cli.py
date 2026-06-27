@@ -68,6 +68,11 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         help="files: .md tree + crawl.json; jsonl: one record per Page on stdout",
     )
     crawl.add_argument(
+        "--summary-json", dest="summary_json", action="store_true",
+        help="Print a machine-readable Outcome summary (files mode: to stdout; "
+             "jsonl mode: already carried by the final Manifest record)",
+    )
+    crawl.add_argument(
         "--selector", metavar="CSS",
         help="CSS selector for the content container (overrides auto-detection)",
     )
@@ -146,6 +151,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlConfig | ServeConfig:
         depth=args.depth,
         limit=args.limit,
         format=args.format,
+        summary_json=args.summary_json,
         keep_html=args.keep_html,
         sitemap=args.sitemap,
         selector=args.selector,
@@ -195,7 +201,11 @@ def main(argv: list[str] | None = None) -> int:
     if config.format == "files" and config.clone_source and not config.resume and config.seeds:
         from getdocs.source import clone_source_for
 
-        if clone_source_for(config) is not None:
+        clone = clone_source_for(config)
+        if clone is not None:
+            print(clone.stderr_line(), file=sys.stderr, flush=True)
+            if config.summary_json:
+                print(json.dumps(clone.summary_json()), flush=True)
             return 0
     state_file = state_file_for(config)
     if config.resume:
@@ -212,9 +222,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         state_file.unlink()
 
-    page_count = run_crawl(config)
-    if page_count == 0:
-        # stderr: stdout belongs to the jsonl stream (ADR-0002)
+    outcome = run_crawl(config)
+    # Always-on one-line summary on stderr (stdout belongs to the jsonl stream,
+    # ADR-0002). The opt-in --summary-json object goes to stdout in files mode;
+    # in jsonl mode the final Manifest record already carries the same facts.
+    print(outcome.stderr_line(), file=sys.stderr, flush=True)
+    if config.summary_json and config.format == "files":
+        print(json.dumps(outcome.summary_json()), flush=True)
+    if outcome.status == "empty":
         print("error: no Pages produced — seed(s) unreachable?", file=sys.stderr, flush=True)
         return 1
     return 0

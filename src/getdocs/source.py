@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 
 from getdocs.config import CrawlConfig
 from getdocs.identity import build_user_agent
+from getdocs.outcome import CloneOutcome
 
 # Hosts whose /ORG/REPO paths we recognize as clonable repositories.
 _GIT_HOSTS = {"github.com", "gitlab.com", "bitbucket.org", "codeberg.org"}
@@ -191,12 +192,17 @@ def write_mkdocs_config(output_dir: Path, docs_dir: Path, site_name: str) -> Pat
     return path
 
 
-def clone_source_for(config: CrawlConfig) -> Path | None:
+def _repo_identity(repo_url: str) -> str:
+    """Short owner/repo identity for a canonical repo URL ("acme/docs")."""
+    return "/".join(s for s in urlsplit(repo_url).path.split("/") if s)
+
+
+def clone_source_for(config: CrawlConfig) -> CloneOutcome | None:
     """Try to satisfy a crawl by cloning the docs' source repo instead.
 
-    Returns the clone directory when the site is open-source and was cloned
-    (the caller should then skip crawling); None to fall back to crawling.
-    Progress and outcomes are reported on stderr (stdout is the jsonl stream).
+    Returns a CloneOutcome when the site is open-source and was cloned (the
+    caller should then skip crawling and report it); None to fall back to
+    crawling. Progress is reported on stderr (stdout is the jsonl stream).
     """
     if not config.seeds:
         return None
@@ -220,19 +226,20 @@ def clone_source_for(config: CrawlConfig) -> Path | None:
     if repo_dir is None:
         print("clone failed (git missing or repo unreachable) — crawling instead", file=sys.stderr)
         return None
+    repo = _repo_identity(repo_url)
 
     own_config = repo_dir / "mkdocs.yml"
     if own_config.exists():
         print(f"cloned to {repo_dir} (ships its own mkdocs.yml)", file=sys.stderr)
         print(f"serve it with: mkdocs serve -f {own_config}", file=sys.stderr)
-        return repo_dir
+        return CloneOutcome(repo=repo, output_dir=repo_dir, mkdocs_config=own_config)
 
     docs_dir = find_docs_dir(repo_dir)
     if docs_dir is None:
         print(f"cloned to {repo_dir}, but found no markdown docs to serve", file=sys.stderr)
-        return repo_dir
+        return CloneOutcome(repo=repo, output_dir=repo_dir, mkdocs_config=None)
 
     written = write_mkdocs_config(config.output_dir, docs_dir, host)
     print(f"cloned to {repo_dir}; wrote {written}", file=sys.stderr)
     print(f"serve it with: mkdocs serve -f {written}", file=sys.stderr)
-    return repo_dir
+    return CloneOutcome(repo=repo, output_dir=repo_dir, mkdocs_config=written)

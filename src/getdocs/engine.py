@@ -25,6 +25,7 @@ from getdocs.config import CrawlConfig
 from getdocs.extract import extract_page, is_shell
 from getdocs.identity import build_user_agent
 from getdocs.navharvest import harvest_nav, merge_harvests
+from getdocs.outcome import CrawlOutcome
 from getdocs.output import AssetStore, FileTreeWriter, JsonlWriter, PageRecord, relink_pages
 from getdocs.scope import Scope
 from getdocs.sitemap import parse_robots_sitemaps, parse_sitemap_xml
@@ -343,8 +344,8 @@ class _CrawlSpider(scrapy.Spider):
         )
 
 
-def run_crawl(config: CrawlConfig) -> int:
-    """Run a Crawl to completion; returns the number of Pages produced."""
+def run_crawl(config: CrawlConfig) -> CrawlOutcome:
+    """Run a Crawl to completion; returns the structured Outcome it produced."""
     if config.format == "jsonl":
         writer = JsonlWriter(sys.stdout)
     else:
@@ -405,7 +406,7 @@ def run_crawl(config: CrawlConfig) -> int:
     if isinstance(writer, FileTreeWriter):
         relink_pages(writer, outcome["crawl_sequence"])
     nav, reading_order = merge_harvests(outcome["harvests"], outcome["crawl_sequence"])
-    writer.write_manifest(
+    manifest_path = writer.write_manifest(
         seeds=config.seeds,
         errors=outcome["errors"],
         truncated=outcome["truncated"],
@@ -415,4 +416,10 @@ def run_crawl(config: CrawlConfig) -> int:
         reading_order=reading_order,
         media_skipped=outcome["media_skipped"],
     )
-    return writer.page_count
+    return CrawlOutcome(
+        pages=writer.page_count,
+        output_dir=config.output_dir,
+        manifest=manifest_path,
+        truncated=outcome["truncated"],
+        format=config.format,
+    )
