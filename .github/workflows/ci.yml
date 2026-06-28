@@ -4,10 +4,17 @@ name: CI
 # in tests/test_plugin_manifest.py) and the official Claude Code plugin
 # validator, so a malformed manifest can never be merged.
 
+# Docs-only changes skip CI. Scoped to root markdown, docs/, and LICENSE —
+# NOT all **/*.md, so plugin/skill markdown still runs the manifest checks.
 on:
   push:
     branches: [main]
+    paths-ignore: &docs
+      - '*.md'
+      - 'docs/**'
+      - 'LICENSE'
   pull_request:
+    paths-ignore: *docs
 
 jobs:
   test:
