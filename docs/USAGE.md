@@ -15,7 +15,8 @@ local serving, the API service) and a from-source install, see the
 getdocs crawl https://example.com/docs -o ./out
 ```
 
-This recursively crawls every page under `/docs` on `example.com` and writes:
+`-o`/`--output-dir` chooses where output lands (default `./out`). This
+recursively crawls every page under `/docs` on `example.com` and writes:
 
 ```
 out/
@@ -131,6 +132,53 @@ Crawl into relative `.md` paths (fragments preserved), so the output tree is
 navigable locally; links to external sites or pages that weren't crawled stay
 absolute. JSONL records keep absolute URLs — stream consumers do their own
 path mapping.
+
+## Completion summary
+
+Every run ends with a one-line summary on **stderr**, so you (or an agent
+driving getdocs) know what happened without inspecting the filesystem:
+
+```
+getdocs: crawled 42 Pages → ./out (crawl.json)
+getdocs: cloned example/docs → ./out/docs (mkdocs.yml)   # a source-first Clone
+```
+
+Add `--summary-json` for a machine-readable **Outcome** object, discriminated by
+`outcome` — a run produces exactly one, a Crawl or a Clone:
+
+```jsonc
+// outcome: "crawled" — a Crawl produced a Pages tree + Manifest
+{ "outcome": "crawled", "status": "ok",          // ok | truncated | empty
+  "pages": 42, "output_dir": "./out",
+  "manifest": "./out/crawl.json", "truncated": false }
+
+// outcome: "cloned" — source-first cloned the repo (no Pages, no Manifest)
+{ "outcome": "cloned", "status": "ok", "repo": "example/docs",
+  "output_dir": "./out/docs", "mkdocs_config": "./out/mkdocs.yml" }
+```
+
+The stderr line and the JSON render from the same value, so they always agree.
+In **files** mode the JSON goes to **stdout**; in **jsonl** mode stdout stays the
+page stream (the final Manifest record already carries the same facts), so no
+extra object is printed — the stderr line is emitted in both modes. An empty or
+unreachable Crawl reports `status: "empty"` and keeps the non-zero exit code.
+
+## Use with a coding agent
+
+getdocs is built to be driven by a coding agent: the `out/` tree + `crawl.json`
+*is* the return value, and `--summary-json` is the signal the agent branches on
+(`crawled` → grep the Pages and Manifest; `cloned` → serve the docs;
+`truncated` → re-run with a higher `--limit`). Two ready-made integrations
+install it for you:
+
+- **Claude Code plugin** — `claude plugin marketplace add jonbakerfish/getdocs`,
+  then `claude plugin install getdocs@getdocs`, giving you `/getdocs <url>`.
+- **Any agent (~70 supported)** — `npx skills add jonbakerfish/getdocs` installs
+  a getdocs skill via the [`skills`](https://github.com/vercel-labs/skills) CLI.
+
+Both run getdocs through `uvx` (only `uv` need be installed). See the README's
+[Use with your agent](../README.md#use-with-your-agent) recipe for the
+synchronous-vs-background patterns and full Outcome branching.
 
 ## Markdown extraction
 
