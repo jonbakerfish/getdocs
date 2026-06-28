@@ -115,6 +115,20 @@ claude plugin uninstall getdocs@getdocs     # remove the plugin
 claude plugin marketplace remove getdocs    # forget the marketplace
 ```
 
+### Install as a skill (any agent)
+
+Not on Claude Code? getdocs also ships as an [agent skill](skills/getdocs/SKILL.md)
+installable into ~70 coding agents (Cursor, OpenCode, Cline, and more) with the
+[`skills`](https://github.com/vercel-labs/skills) CLI — no manual setup:
+
+```bash
+npx skills add jonbakerfish/getdocs
+```
+
+This drops a `getdocs` skill into your agent's skills directory; the agent then
+runs getdocs via `uvx` and reads the Outcome, the same as the plugin above. (Same
+`uv` prerequisite.)
+
 ### Drive the CLI directly (any agent)
 
 Two patterns cover most uses.

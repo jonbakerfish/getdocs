@@ -35,6 +35,22 @@ def _command_text() -> str:
     return (_plugin_dir() / "commands" / "getdocs.md").read_text()
 
 
+SKILL = REPO / "skills" / "getdocs" / "SKILL.md"
+
+
+def _skill_text() -> str:
+    return SKILL.read_text()
+
+
+def _skill_frontmatter() -> dict:
+    import yaml
+
+    body = _skill_text()
+    assert body.startswith("---\n")
+    _, fm, _ = body.split("---\n", 2)
+    return yaml.safe_load(fm)
+
+
 def test_marketplace_lists_the_getdocs_plugin_and_its_dir_exists():
     market = _marketplace()
     assert market["name"]  # the install target: <plugin>@<marketplace name>
@@ -121,6 +137,39 @@ def test_plugin_is_discoverable_by_crawl_and_scrape():
     for term in ("crawl", "scrape"):
         assert term in manifest["description"].lower()
         assert term in _plugin_entry()["description"].lower()
+
+
+def test_skill_is_discoverable_with_required_frontmatter():
+    # `npx skills add` discovers SKILL.md by its name/description frontmatter.
+    fm = _skill_frontmatter()
+    assert fm["name"] == "getdocs"
+    desc = fm["description"].lower()
+    assert desc
+    assert "crawl" in desc and "scrape" in desc  # searchable terms
+
+
+def test_skill_invokes_getdocs_with_summary_json_and_version_pin():
+    text = _skill_text()
+    assert "getdocs crawl" in text
+    assert "--summary-json" in text
+    assert "uvx" in text and "getdocs>=0.2.0" in text
+
+
+def test_skill_preserves_polite_defaults():
+    invocations = [line for line in _skill_text().splitlines() if "getdocs crawl" in line]
+    assert invocations
+    assert all("--ignore-robots" not in line for line in invocations)
+
+
+def test_skill_branches_on_every_outcome():
+    text = _skill_text()
+    for token in ('"crawled"', '"cloned"', "truncated", "empty"):
+        assert token in text, f"skill should guide the {token} Outcome"
+
+
+def test_readme_documents_the_npx_skills_install():
+    readme = (REPO / "README.md").read_text()
+    assert "npx skills add jonbakerfish/getdocs" in readme
 
 
 def test_readme_install_commands_match_the_manifest_names():
