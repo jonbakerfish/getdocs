@@ -21,7 +21,7 @@ A starting URL the user provides to a Crawl.
 _Avoid_: root URL, entry point
 
 **Scope**:
-The rule deciding whether a discovered URL belongs to a Crawl; by default, same host + path prefix of the Seed URL.
+The rule deciding whether a discovered URL belongs to a Crawl; by default, same host + path prefix of the Seed URL. A Seed whose final path segment names a document file (`parameters.html`) contributes its containing directory as the prefix, so seeding one Page still discovers its siblings.
 _Avoid_: domain filter, boundary
 
 **Page**:

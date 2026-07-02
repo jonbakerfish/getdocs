@@ -13,6 +13,26 @@ def test_default_scope_is_seed_host_plus_path_prefix():
     assert not scope.allows("mailto:hi@example.com")  # non-http
 
 
+def test_file_seed_scopes_to_its_containing_directory():
+    # Seeding a specific Page must still discover its siblings: the final
+    # document-file segment is not part of the path prefix.
+    scope = Scope.from_seeds(["https://example.com/docs/v2/guide/intro.html"])
+
+    assert scope.allows("https://example.com/docs/v2/guide/intro.html")
+    assert scope.allows("https://example.com/docs/v2/guide/setup.html")
+    assert scope.allows("https://example.com/docs/v2/guide/api/auth.html")
+    assert not scope.allows("https://example.com/docs/v2/reference/intro.html")
+
+
+def test_version_like_segment_stays_in_prefix():
+    # A dotted segment that is not a known page file (e.g. a version) is a
+    # directory, so it remains a required prefix segment.
+    scope = Scope.from_seeds(["https://example.com/docs/v2.0"])
+
+    assert scope.allows("https://example.com/docs/v2.0/api")
+    assert not scope.allows("https://example.com/docs/v3.0/api")
+
+
 def test_allow_backward_widens_scope_to_whole_host():
     scope = Scope.from_seeds(["https://example.com/docs"], allow_backward=True)
 

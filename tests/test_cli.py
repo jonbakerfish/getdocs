@@ -42,9 +42,9 @@ def test_scope_flags_default_to_strict():
 
 
 def test_sitemap_mode_flags():
-    assert parse_args(["crawl", "https://x.com/d"]).sitemap == "both"
-    assert parse_args(["crawl", "https://x.com/d", "--no-sitemap"]).sitemap == "off"
-    assert parse_args(["crawl", "https://x.com/d", "--sitemap-only"]).sitemap == "only"
+    assert parse_args(["crawl", "https://example.com/d"]).sitemap == "both"
+    assert parse_args(["crawl", "https://example.com/d", "--no-sitemap"]).sitemap == "off"
+    assert parse_args(["crawl", "https://example.com/d", "--sitemap-only"]).sitemap == "only"
 
 
 def test_format_and_keep_html_flags():
@@ -72,9 +72,9 @@ def test_politeness_flags_and_defaults():
 
 
 def test_render_mode_flag():
-    assert parse_args(["crawl", "https://x.com/d"]).render == "auto"
-    assert parse_args(["crawl", "https://x.com/d", "--render", "always"]).render == "always"
-    assert parse_args(["crawl", "https://x.com/d", "--render", "never"]).render == "never"
+    assert parse_args(["crawl", "https://example.com/d"]).render == "auto"
+    assert parse_args(["crawl", "https://example.com/d", "--render", "always"]).render == "always"
+    assert parse_args(["crawl", "https://example.com/d", "--render", "never"]).render == "never"
 
 
 def test_seeds_file_urls_are_added_to_positional_seeds(tmp_path):
